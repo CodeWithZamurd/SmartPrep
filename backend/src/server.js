@@ -36,7 +36,7 @@ mongoose
   .connect(MONGO_URI)
   .then(() => {
     console.log('Mongo connected');
-    app.listen(PORT, () => console.log(`Backend listening on :${PORT}`));
+    app.listen(PORT, '0.0.0.0', () => console.log(`Backend listening on 0.0.0.0:${PORT}`));
   })
   .catch((err) => {
     console.error('Mongo connection failed:', err.message);
