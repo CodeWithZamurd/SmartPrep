@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "SmartPrep",
+    "slug": "smartprep",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": { "supportsTablet": true, "bundleIdentifier": "com.smartprep.app" },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.smartprep.app",
+      "permissions": ["RECORD_AUDIO"]
+    },
+    "extra": {
+      "apiBaseUrl": "http://10.0.2.2:4000"
+    },
+    "plugins": [
+      [
+        "expo-av",
+        { "microphonePermission": "Allow SmartPrep to access your microphone." }
+      ]
+    ]
+  }
+}
