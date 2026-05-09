@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import Brand from '../components/Brand.jsx';
-import { PhoneLayout } from '../components/Layout.jsx';
+import { AuthLayout } from '../components/Layout.jsx';
 import { useAuth } from '../auth/AuthContext.jsx';
 
 export default function Signup() {
@@ -30,55 +29,59 @@ export default function Signup() {
   }
 
   return (
-    <PhoneLayout hideTabs>
-      <Brand />
-      <h1 className="title center">Join SmartPrep</h1>
-      <p className="subtitle center">Create your account to begin</p>
+    <AuthLayout
+      heroTitle={
+        <>
+          Join <span>SmartPrep</span>
+        </>
+      }
+      heroSubtitle="Create your account in seconds and start practicing real interview questions today."
+    >
+      <h2>Create your account</h2>
+      <p className="subtitle mt-sm">It only takes a minute.</p>
+      {error && (
+        <div className="card alt mt-md" style={{ borderColor: 'var(--danger)' }}>
+          <p style={{ color: 'var(--danger)' }}>{error}</p>
+        </div>
+      )}
       <form onSubmit={submit}>
-        <label className="label">NAME*</label>
-        <input className="input" placeholder="Full Name" value={name} onChange={(e) => setName(e.target.value)} required />
-        <label className="label">EMAIL*</label>
+        <label className="label">Full name</label>
+        <input className="input" placeholder="Jane Doe" value={name} onChange={(e) => setName(e.target.value)} required />
+        <label className="label">Email</label>
         <input
           className="input"
           type="email"
-          placeholder="abc@example.com"
+          placeholder="you@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
         />
-        <label className="label">PASSWORD*</label>
-        <div style={{ position: 'relative' }}>
+        <label className="label">Password</label>
+        <div className="password-wrap">
           <input
             className="input"
             type={showPwd ? 'text' : 'password'}
-            placeholder="••••••••"
+            placeholder="At least 6 characters"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
           />
-          <button
-            type="button"
-            onClick={() => setShowPwd((s) => !s)}
-            style={{ position: 'absolute', right: 8, top: 8, background: 'none', border: 'none', color: 'var(--text-secondary)' }}
-          >
+          <button type="button" className="toggle" onClick={() => setShowPwd((s) => !s)}>
             {showPwd ? '🙈' : '👁'}
           </button>
         </div>
         <p className="muted" style={{ fontSize: 11, marginTop: 6 }}>
-          Must have atleast 6 characters
-          <br />
-          Must include special characters (!@#, etc)
+          Use at least 6 characters and include a special character.
         </p>
-        {error && <p style={{ color: 'var(--danger)' }}>{error}</p>}
-        <button className="btn mt-lg" disabled={loading}>
-          {loading ? 'Creating…' : 'SIGN UP HERE'}
+        <button className="btn block lg mt-lg" disabled={loading}>
+          {loading ? 'Creating account…' : 'Sign up'}
         </button>
       </form>
-      <p className="center muted mt-md">OR</p>
-      <p className="center">
+      <div className="divider" />
+      <p className="center" style={{ fontSize: 14 }}>
         <span className="muted">Already have an account? </span>
-        <Link to="/login" className="link">Login</Link>
+        <Link to="/login" className="link">Sign in</Link>
       </p>
-    </PhoneLayout>
+    </AuthLayout>
   );
 }

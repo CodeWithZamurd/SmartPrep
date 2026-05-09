@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Brand from '../components/Brand.jsx';
-import { PhoneLayout } from '../components/Layout.jsx';
+import { AppLayout } from '../components/Layout.jsx';
 import ProgressRing from '../components/ProgressRing.jsx';
 import { api } from '../api.js';
 
@@ -15,29 +14,63 @@ export default function Result() {
     api.get('/profile/stats').then((r) => setOverall(r.data.stats.accuracy || 0));
   }, []);
 
+  const completed = sessions.filter((s) => s.status === 'completed');
+
   return (
-    <PhoneLayout>
-      <Brand />
-      <h1 className="title">Result</h1>
-      <h3>Performance Overview</h3>
-      <div className="center" style={{ margin: '16px 0' }}>
-        <ProgressRing value={overall} label="Overall Performance" />
-      </div>
-      <h3>Interview History</h3>
-      {sessions.length === 0 && <p className="muted center">No interviews yet — start one!</p>}
-      {sessions
-        .filter((s) => s.status === 'completed')
-        .map((s) => (
-          <div key={s._id} className="card card-alt between">
-            <div>
-              <div style={{ fontWeight: 700 }}>
-                {(s.domain && s.domain.name) || s.domainSlug} - {new Date(s.createdAt).toLocaleDateString()}
-              </div>
-              <span className="score-pill">{s.overallScore || s.overallTechnical || 0}%</span>
-            </div>
-            <span className="link" onClick={() => nav(`/feedback/${s._id}`)}>View Details</span>
+    <AppLayout>
+      <h1>Results</h1>
+      <p className="subtitle mt-sm">A historical view of every completed interview.</p>
+
+      <div className="grid-2 mt-lg" style={{ gridTemplateColumns: '320px 1fr', alignItems: 'start' }}>
+        <div className="card center">
+          <h3>Performance Overview</h3>
+          <div className="mt-lg" style={{ display: 'flex', justifyContent: 'center' }}>
+            <ProgressRing value={overall} label="Overall Performance" size={200} />
           </div>
-        ))}
-    </PhoneLayout>
+          <p className="muted mt-md" style={{ fontSize: 13 }}>
+            Across {completed.length} completed interview{completed.length === 1 ? '' : 's'}.
+          </p>
+        </div>
+
+        <div>
+          <h3>Interview history</h3>
+          {completed.length === 0 ? (
+            <div className="card center mt-md">
+              <p className="subtitle">No completed interviews yet.</p>
+              <button className="btn mt-md" onClick={() => nav('/interview')}>
+                Start your first interview
+              </button>
+            </div>
+          ) : (
+            <div className="table-wrap mt-md">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>Domain</th>
+                    <th>Date</th>
+                    <th>Score</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {completed.map((s) => (
+                    <tr key={s._id}>
+                      <td><strong>{(s.domain && s.domain.name) || s.domainSlug}</strong></td>
+                      <td className="muted">{new Date(s.createdAt).toLocaleDateString()}</td>
+                      <td><span className="score-pill">{s.overallScore || s.overallTechnical || 0}%</span></td>
+                      <td style={{ textAlign: 'right' }}>
+                        <button className="btn sm secondary" onClick={() => nav(`/feedback/${s._id}`)}>
+                          View details
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </AppLayout>
   );
 }

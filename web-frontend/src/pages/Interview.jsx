@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import Brand from '../components/Brand.jsx';
-import { PhoneLayout } from '../components/Layout.jsx';
+import { AppLayout } from '../components/Layout.jsx';
 import { api } from '../api.js';
 
 export default function Interview() {
@@ -21,6 +20,12 @@ export default function Interview() {
   const recRef = useRef(null);
   const chunksRef = useRef([]);
   const isLast = index + 1 >= total;
+  const progress = ((index + 1) / total) * 100;
+
+  if (!sessionId) {
+    nav('/interview', { replace: true });
+    return null;
+  }
 
   async function startRecording() {
     try {
@@ -47,7 +52,6 @@ export default function Interview() {
   }
 
   async function submit() {
-    if (!sessionId) return;
     if (!text && !recordedBlob) return alert('Type or record an answer first.');
     setBusy(true);
     try {
@@ -79,57 +83,74 @@ export default function Interview() {
   }
 
   return (
-    <PhoneLayout>
-      <Brand />
-      <h1 className="title">AI Interview</h1>
-      <p>
-        <span style={{ fontWeight: 700 }}>Category: </span>
-        <span style={{ color: 'var(--star)', fontWeight: 900 }}>{domain?.name || 'General'}</span>
-      </p>
-      <p style={{ fontWeight: 700 }}>
-        Question {index + 1} of {total}
-      </p>
-
-      <div className="card card-alt">
-        <p style={{ margin: 0 }}>{question}</p>
+    <AppLayout narrow>
+      <div className="between">
+        <div>
+          <p className="muted" style={{ fontSize: 13 }}>{domain?.name || 'General'}</p>
+          <h1>Question {index + 1} of {total}</h1>
+        </div>
+        <button className="btn sm secondary" onClick={endSession}>End session</button>
+      </div>
+      <div className="progress-track mt-md">
+        <div className="progress-fill" style={{ width: `${progress}%` }} />
       </div>
 
-      <div className="center" style={{ fontSize: 64, margin: '12px 0' }}>
-        🤖
-        {recording && <div style={{ fontSize: 14, color: 'var(--danger)' }}>🔴 Recording…</div>}
+      <div className="card alt mt-lg">
+        <p style={{ fontSize: 18, lineHeight: 1.5, margin: 0 }}>{question}</p>
       </div>
 
-      {mode.textInput !== false && (
-        <textarea
-          className="textarea"
-          placeholder="Type your answer……"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
-      )}
+      <div className="grid-2 mt-lg" style={{ gridTemplateColumns: '1fr 1fr', alignItems: 'flex-start' }}>
+        <div className="card">
+          <h3>📝 Your answer</h3>
+          {mode.textInput !== false && (
+            <textarea
+              className="textarea mt-sm"
+              placeholder="Type your answer here…"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+            />
+          )}
 
-      {mode.voiceInput !== false && (
-        <div className="mt-md">
-          {recording ? (
-            <button className="btn danger" onClick={stopRecording}>⏹ Stop Recording</button>
-          ) : recordedBlob ? (
-            <>
-              <button className="btn outline" onClick={startRecording}>🎤 Re-record</button>
-              <p style={{ color: 'var(--green)', fontSize: 12, marginTop: 6 }}>✓ Voice recorded</p>
-            </>
-          ) : (
-            <button className="btn outline" onClick={startRecording}>🎤 Record Voice</button>
+          {mode.voiceInput !== false && (
+            <div className="mt-md">
+              <h4 className="muted" style={{ fontSize: 13 }}>OR RECORD VOICE</h4>
+              {recording ? (
+                <button className="btn block danger mt-sm" onClick={stopRecording}>
+                  ⏹ Stop recording
+                </button>
+              ) : recordedBlob ? (
+                <>
+                  <button className="btn block outline mt-sm" onClick={startRecording}>
+                    🎤 Re-record
+                  </button>
+                  <p style={{ color: 'var(--green)', fontSize: 13, marginTop: 8 }}>✓ Voice recorded</p>
+                </>
+              ) : (
+                <button className="btn block outline mt-sm" onClick={startRecording}>
+                  🎤 Record voice
+                </button>
+              )}
+            </div>
+          )}
+
+          <button className="btn block lg mt-md" onClick={submit} disabled={busy}>
+            {busy ? 'Analyzing…' : isLast ? 'Finish interview ✓' : 'Submit & next →'}
+          </button>
+        </div>
+
+        <div className="card center" style={{ padding: '40px 20px' }}>
+          <div style={{ fontSize: 96 }}>🤖</div>
+          <h3 className="mt-md">Your AI interviewer</h3>
+          <p className="subtitle mt-sm">
+            Take your time — answer technically and clearly. The follow-ups adapt to your answer.
+          </p>
+          {recording && (
+            <p className="mt-md" style={{ color: 'var(--danger)', fontWeight: 700 }}>
+              🔴 Recording in progress…
+            </p>
           )}
         </div>
-      )}
-
-      <button className="btn mt-md" onClick={submit} disabled={busy}>
-        {busy ? 'Analyzing…' : isLast ? 'End Interview' : 'Next Question'}
-      </button>
-
-      <p className="center mt-md" onClick={endSession} style={{ color: 'var(--danger)', cursor: 'pointer' }}>
-        End session
-      </p>
-    </PhoneLayout>
+      </div>
+    </AppLayout>
   );
 }
