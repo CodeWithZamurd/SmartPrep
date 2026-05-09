@@ -9,6 +9,12 @@ import profileRoutes from './routes/profile.js';
 import sessionRoutes from './routes/sessions.js';
 import practiceRoutes from './routes/practice.js';
 import challengeRoutes from './routes/challenge.js';
+import domainsRoutes from './routes/domains.js';
+import questionsRoutes from './routes/questions.js';
+import notificationsRoutes from './routes/notifications.js';
+import feedbackRoutes from './routes/feedback.js';
+import reportsRoutes from './routes/reports.js';
+import aiSettingsRoutes from './routes/aiSettings.js';
 
 const app = express();
 
@@ -23,6 +29,12 @@ app.use('/profile', profileRoutes);
 app.use('/sessions', sessionRoutes);
 app.use('/practice', practiceRoutes);
 app.use('/challenge', challengeRoutes);
+app.use('/domains', domainsRoutes);
+app.use('/questions', questionsRoutes);
+app.use('/notifications', notificationsRoutes);
+app.use('/feedback', feedbackRoutes);
+app.use('/reports', reportsRoutes);
+app.use('/ai-settings', aiSettingsRoutes);
 
 app.use((err, _req, res, _next) => {
   console.error(err);

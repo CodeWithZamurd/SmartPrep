@@ -6,7 +6,7 @@ const router = Router();
 
 router.get('/', requireAuth, async (req, res, next) => {
   try {
-    const { domain = 'software' } = req.query;
+    const { domain = 'ai' } = req.query;
     const data = await ai.generateChallenge({ domain });
     res.json(data);
   } catch (e) {

@@ -1,110 +1,222 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { api } from '../services/api';
+import { Brand } from '../components/Screen';
+import BottomTabs from '../components/BottomTabs';
+import Card from '../components/Card';
 import Button from '../components/Button';
+import ProgressRing from '../components/ProgressRing';
+import { colors, radii, spacing } from '../theme';
 
-function ScoreBar({ label, value }) {
-  const v = Math.max(0, Math.min(100, value || 0));
+function ScoreCard({ icon, title, score, color = colors.green, children }) {
   return (
-    <View style={styles.barRow}>
-      <Text style={styles.barLabel}>{label}</Text>
-      <View style={styles.barTrack}>
-        <View style={[styles.barFill, { width: `${v}%` }]} />
+    <Card variant="alt">
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+        <Text style={styles.cardTitle}>
+          {icon} {title}
+        </Text>
+        <Text style={[styles.cardScore, { color }]}>{score}%</Text>
       </View>
-      <Text style={styles.barValue}>{v}</Text>
+      <Text style={styles.scoreLabel}>Score:</Text>
+      {children}
+    </Card>
+  );
+}
+
+function MetricRow({ items }) {
+  return (
+    <View style={styles.metricRow}>
+      {items.map((m) => (
+        <View key={m.label} style={styles.metric}>
+          <Text style={[styles.metricLabel, { color: m.color }]}>{m.label}</Text>
+          <Text style={styles.metricVal}>{m.value}/100</Text>
+        </View>
+      ))}
     </View>
   );
 }
 
 export default function FeedbackScreen({ navigation, route }) {
   const { sessionId } = route.params;
-  const [session, setSession] = useState(null);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState('overview');
 
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await api.get(`/sessions/${sessionId}`);
-        setSession(data.session);
-      } catch (_) {}
+        const { data } = await api.get(`/feedback/session/${sessionId}`);
+        setData(data);
+      } catch (e) {
+      } finally {
+        setLoading(false);
+      }
     })();
   }, [sessionId]);
 
-  if (!session) {
+  if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#1f6feb" />
-      </View>
+      <SafeAreaView edges={['top']} style={styles.safe}>
+        <ActivityIndicator color={colors.primary} style={{ marginTop: 80 }} />
+      </SafeAreaView>
     );
   }
 
+  if (!data) {
+    return (
+      <SafeAreaView edges={['top']} style={styles.safe}>
+        <Text style={styles.empty}>No feedback available.</Text>
+      </SafeAreaView>
+    );
+  }
+
+  const { feedback, session } = data;
+  const overall = session.overallScore || 0;
+  const correct = (session.turns || []).filter((t) => t.correct).length;
+  const total = session.turns?.length || session.targetQuestions;
+  const verdict = overall >= 75 ? 'Strong Candidate' : overall >= 60 ? 'Promising' : 'Needs Practice';
+
+  async function downloadReport() {
+    try {
+      await api.post(`/reports/generate/${sessionId}`);
+      // would normally surface a link/download
+    } catch (e) {}
+  }
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>
-      <Text style={styles.title}>Your Scorecard</Text>
-      <Text style={styles.meta}>
-        {session.domain === 'software' ? 'Software Dev' : 'AI / Data Sci'} · {session.difficulty} ·{' '}
-        {session.turns?.length || 0} questions
-      </Text>
+    <SafeAreaView edges={['top']} style={styles.safe}>
+      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 110 }}>
+        <Brand small />
+        <Text style={styles.title}>AI Interview Feedback</Text>
 
-      <View style={styles.card}>
-        <ScoreBar label="Technical" value={session.overallTechnical} />
-        <ScoreBar label="Clarity" value={session.overallClarity} />
-        <ScoreBar label="Confidence" value={session.overallConfidence} />
-      </View>
+        {tab === 'overview' && (
+          <>
+            <Text style={styles.sub}>Here's a complete feedback of your interview</Text>
+            <View style={{ flexDirection: 'row' }}>
+              <Text style={styles.cardTitle}>Category: </Text>
+              <Text style={[styles.cardTitle, { color: colors.star }]}>
+                {session.domain?.name || session.domainSlug}
+              </Text>
+            </View>
 
-      {session.summary ? (
-        <View style={styles.card}>
-          <Text style={styles.section}>Summary</Text>
-          <Text style={styles.body}>{session.summary}</Text>
-        </View>
-      ) : null}
+            <Text style={styles.sectionLabel}>Overall Performance</Text>
+            <View style={{ alignItems: 'center', marginVertical: spacing.md }}>
+              <ProgressRing value={overall} label={verdict} />
+            </View>
+            <Text style={styles.detailHead}>Detailed Feedback</Text>
 
-      {session.tips?.length ? (
-        <View style={styles.card}>
-          <Text style={styles.section}>Tips</Text>
-          {session.tips.map((t, i) => (
-            <Text key={i} style={styles.tip}>
-              • {t}
-            </Text>
-          ))}
-        </View>
-      ) : null}
+            <ScoreCard icon="📈" title="Technical Accuracy" score={feedback.technicalScore || 0}>
+              <View style={styles.scoreBox}>
+                <Text style={{ color: '#fff' }}>
+                  Question Correct:{' '}
+                  <Text style={{ color: colors.green, fontWeight: '900' }}>{correct}/{total}</Text>
+                </Text>
+              </View>
+            </ScoreCard>
 
-      <Text style={styles.section}>Question by question</Text>
-      {session.turns?.map((t, i) => (
-        <View key={i} style={styles.turn}>
-          <Text style={styles.turnQ}>
-            Q{i + 1}. {t.question}
-          </Text>
-          <Text style={styles.turnT}>“{t.transcript || '—'}”</Text>
-          <Text style={styles.turnScores}>
-            tech {t.technicalScore ?? 0} · clarity {t.clarityScore ?? 0} · conf {t.confidenceScore ?? 0}
-          </Text>
-          {t.suggestion ? <Text style={styles.turnSuggest}>💡 {t.suggestion}</Text> : null}
-        </View>
-      ))}
+            <ScoreCard icon="🎤" title="Voice Analysis" score={feedback.voiceScore || 0}>
+              <View style={styles.scoreBox}>
+                <MetricRow
+                  items={[
+                    { label: 'Filler Words', value: session.voiceMetrics?.fillerWords ?? 0, color: colors.yellow },
+                    { label: 'Pacing', value: session.voiceMetrics?.pacing ?? 0, color: colors.green }
+                  ]}
+                />
+                <MetricRow
+                  items={[
+                    { label: 'Clarity', value: session.voiceMetrics?.clarity ?? 0, color: colors.red },
+                    { label: 'Tone and Confidence', value: session.voiceMetrics?.toneConfidence ?? 0, color: colors.green }
+                  ]}
+                />
+              </View>
+            </ScoreCard>
+            <Pressable onPress={() => setTab('detailed')} style={{ alignSelf: 'flex-end' }}>
+              <Text style={styles.link}>See Detailed →</Text>
+            </Pressable>
+          </>
+        )}
 
-      <Button title="Back to Home" onPress={() => navigation.replace('Home')} />
-    </ScrollView>
+        {tab === 'detailed' && (
+          <>
+            <Text style={styles.detailHead}>Detailed Feedback</Text>
+            <ScoreCard icon="📈" title="Technical Accuracy" score={feedback.technicalScore || 0}>
+              <View style={styles.scoreBox}>
+                <Text style={{ color: '#fff' }}>
+                  Question Correct:{' '}
+                  <Text style={{ color: colors.green, fontWeight: '900' }}>{correct}/{total}</Text>
+                </Text>
+              </View>
+            </ScoreCard>
+            <ScoreCard icon="🎤" title="Voice Analysis" score={feedback.voiceScore || 0}>
+              <View style={styles.scoreBox}>
+                <MetricRow
+                  items={[
+                    { label: 'Filler Words', value: session.voiceMetrics?.fillerWords ?? 0, color: colors.yellow },
+                    { label: 'Pacing', value: session.voiceMetrics?.pacing ?? 0, color: colors.green }
+                  ]}
+                />
+                <MetricRow
+                  items={[
+                    { label: 'Clarity', value: session.voiceMetrics?.clarity ?? 0, color: colors.red },
+                    { label: 'Tone and Confidence', value: session.voiceMetrics?.toneConfidence ?? 0, color: colors.green }
+                  ]}
+                />
+              </View>
+            </ScoreCard>
+            <ScoreCard icon="🧍" title="Body Language Analysis" score={feedback.bodyLanguageScore || 0}>
+              <View style={styles.scoreBox}>
+                <MetricRow
+                  items={[
+                    { label: 'Eye Contact', value: session.bodyMetrics?.eyeContact ?? 0, color: colors.green },
+                    { label: 'Facial Sentiment', value: session.bodyMetrics?.facialSentiment ?? 0, color: colors.yellow }
+                  ]}
+                />
+                <MetricRow
+                  items={[
+                    { label: 'Fidgeting Detection', value: session.bodyMetrics?.fidgeting ?? 0, color: colors.red },
+                    { label: 'Posture', value: session.bodyMetrics?.posture ?? 0, color: colors.green }
+                  ]}
+                />
+              </View>
+            </ScoreCard>
+            <Pressable
+              onPress={() => navigation.navigate('QuestionDetails', { sessionId })}
+              style={{ alignSelf: 'flex-end' }}
+            >
+              <Text style={styles.link}>See Question Details →</Text>
+            </Pressable>
+
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: spacing.lg }}>
+              <View style={{ flex: 1 }}>
+                <Button title="See Suggestions" onPress={() => navigation.navigate('Suggestions', { sessionId })} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Button title="Download Report" onPress={downloadReport} variant="outline" />
+              </View>
+            </View>
+          </>
+        )}
+      </ScrollView>
+      <BottomTabs active="Result" />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
-  title: { fontSize: 24, fontWeight: '700' },
-  meta: { color: '#666', marginBottom: 12 },
-  card: { backgroundColor: '#f5f7fb', padding: 14, borderRadius: 12, marginVertical: 8 },
-  section: { fontSize: 16, fontWeight: '600', marginBottom: 6 },
-  body: { color: '#333', lineHeight: 20 },
-  tip: { marginVertical: 2, color: '#333' },
-  barRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 6 },
-  barLabel: { width: 88, color: '#444' },
-  barTrack: { flex: 1, height: 10, backgroundColor: '#e0e7ff', borderRadius: 6, overflow: 'hidden', marginHorizontal: 8 },
-  barFill: { height: 10, backgroundColor: '#1f6feb' },
-  barValue: { width: 30, textAlign: 'right', color: '#444' },
-  turn: { backgroundColor: '#fafbff', padding: 12, borderRadius: 10, marginVertical: 6 },
-  turnQ: { fontWeight: '600', marginBottom: 4 },
-  turnT: { color: '#555', fontStyle: 'italic', marginBottom: 4 },
-  turnScores: { color: '#444', fontSize: 12 },
-  turnSuggest: { marginTop: 4, color: '#1f6feb' }
+  safe: { flex: 1, backgroundColor: colors.bg },
+  title: { color: '#fff', fontSize: 22, fontWeight: '900', marginVertical: spacing.xs },
+  sub: { color: colors.textSecondary, marginBottom: 6 },
+  sectionLabel: { color: '#fff', fontWeight: '900', marginTop: spacing.md },
+  detailHead: { color: '#fff', fontWeight: '900', marginVertical: spacing.sm },
+  cardTitle: { color: '#fff', fontWeight: '900' },
+  cardScore: { fontWeight: '900' },
+  scoreLabel: { color: colors.textSecondary, marginTop: 4 },
+  scoreBox: { backgroundColor: colors.card, borderRadius: radii.md, padding: 10, marginTop: 6 },
+  metricRow: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 4 },
+  metric: { flexBasis: '48%' },
+  metricLabel: { fontSize: 12, fontWeight: '700' },
+  metricVal: { color: '#fff', fontWeight: '700', marginTop: 2 },
+  link: { color: colors.primary, fontWeight: '700', marginTop: 4 },
+  empty: { color: '#fff', textAlign: 'center', marginTop: 40 }
 });

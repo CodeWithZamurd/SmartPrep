@@ -9,7 +9,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 
 // Single question, no persistence
 router.get('/question', requireAuth, async (req, res, next) => {
   try {
-    const { domain = 'software', difficulty = 'medium' } = req.query;
+    const { domain = 'web', difficulty = 'medium' } = req.query;
     const q = await ai.generateQuestion({ domain, difficulty, history: [] });
     res.json({ question: q.question, domain, difficulty });
   } catch (e) {
@@ -19,7 +19,7 @@ router.get('/question', requireAuth, async (req, res, next) => {
 
 router.post('/evaluate', requireAuth, upload.single('audio'), async (req, res, next) => {
   try {
-    const { question, domain = 'software', difficulty = 'medium' } = req.body;
+    const { question, domain = 'web', difficulty = 'medium' } = req.body;
     if (!question) return res.status(400).json({ error: 'Missing question' });
     let transcript = req.body.textFallback || '';
     if (req.file) {
