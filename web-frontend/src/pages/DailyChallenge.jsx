@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import Brand from '../components/Brand.jsx';
-import { PhoneLayout } from '../components/Layout.jsx';
+import { AppLayout } from '../components/Layout.jsx';
 import { api } from '../api.js';
 
 export default function DailyChallenge() {
@@ -9,22 +8,22 @@ export default function DailyChallenge() {
     api.get('/challenge').then((r) => setData(r.data)).catch(() => {});
   }, []);
   return (
-    <PhoneLayout>
-      <Brand />
-      <h1 className="title center">Daily AI Challenge</h1>
+    <AppLayout narrow>
+      <h1>Daily AI Challenge</h1>
+      <p className="subtitle mt-sm">A fresh, real-world question every day. Try to answer before reading on.</p>
 
-      <div className="card card-alt">
-        <h4 style={{ color: 'var(--primary)', margin: 0 }}>Question</h4>
-        <p className="subtitle">{data?.question || 'Loading…'}</p>
+      <div className="card mt-lg">
+        <h3 style={{ color: 'var(--primary)' }}>Question</h3>
+        <p className="subtitle mt-sm">{data?.question || 'Loading…'}</p>
       </div>
-      <div className="card card-alt">
-        <h4 style={{ color: 'var(--primary)', margin: 0 }}>Answer</h4>
-        <p className="subtitle">{data?.answer || ''}</p>
+      <div className="card mt-md">
+        <h3 style={{ color: 'var(--primary)' }}>Model answer</h3>
+        <p className="subtitle mt-sm">{data?.answer || ''}</p>
       </div>
-      <div className="card card-alt">
-        <h4 style={{ color: 'var(--primary)', margin: 0 }}>Detailed Explanation</h4>
-        <p className="subtitle" style={{ whiteSpace: 'pre-wrap' }}>{data?.explanation || ''}</p>
+      <div className="card mt-md">
+        <h3 style={{ color: 'var(--primary)' }}>Detailed explanation</h3>
+        <p className="subtitle mt-sm" style={{ whiteSpace: 'pre-wrap' }}>{data?.explanation || ''}</p>
       </div>
-    </PhoneLayout>
+    </AppLayout>
   );
 }

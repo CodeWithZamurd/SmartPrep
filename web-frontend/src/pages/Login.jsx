@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import Brand from '../components/Brand.jsx';
-import { PhoneLayout } from '../components/Layout.jsx';
+import { AuthLayout } from '../components/Layout.jsx';
 import { useAuth } from '../auth/AuthContext.jsx';
 
 export default function Login() {
@@ -28,26 +27,33 @@ export default function Login() {
   }
 
   return (
-    <PhoneLayout hideTabs>
-      <Brand />
-      <h1 style={{ color: 'var(--primary)', fontSize: 44, margin: '12px 0 4px' }}>
-        Welcome
-        <br />
-        Back!
-      </h1>
-      <p className="subtitle center mt-md">Login to continue your journey!</p>
+    <AuthLayout
+      heroTitle={
+        <>
+          Welcome <span>back!</span>
+        </>
+      }
+      heroSubtitle="Pick up right where you left off and keep climbing the leaderboard."
+    >
+      <h2>Sign in to your account</h2>
+      <p className="subtitle mt-sm">Login to continue your journey.</p>
+      {error && (
+        <div className="card alt mt-md" style={{ borderColor: 'var(--danger)' }}>
+          <p style={{ color: 'var(--danger)' }}>{error}</p>
+        </div>
+      )}
       <form onSubmit={submit}>
-        <label className="label">EMAIL*</label>
+        <label className="label">Email</label>
         <input
           className="input"
           type="email"
-          placeholder="abc@example.com"
+          placeholder="you@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
         />
-        <label className="label">PASSWORD*</label>
-        <div style={{ position: 'relative' }}>
+        <label className="label">Password</label>
+        <div className="password-wrap">
           <input
             className="input"
             type={showPwd ? 'text' : 'password'}
@@ -56,30 +62,25 @@ export default function Login() {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
-          <button
-            type="button"
-            onClick={() => setShowPwd((s) => !s)}
-            style={{ position: 'absolute', right: 8, top: 8, background: 'none', border: 'none', color: 'var(--text-secondary)' }}
-          >
+          <button type="button" className="toggle" onClick={() => setShowPwd((s) => !s)}>
             {showPwd ? '🙈' : '👁'}
           </button>
         </div>
-        <div style={{ textAlign: 'right', marginTop: 6, fontSize: 12 }}>
-          <span className="muted">Forgot Password? </span>
-          <span className="link">Click here</span>
+        <div style={{ textAlign: 'right', marginTop: 8 }}>
+          <span className="link" style={{ fontSize: 13 }}>Forgot password?</span>
         </div>
-        {error && <p style={{ color: 'var(--danger)' }}>{error}</p>}
-        <button className="btn mt-lg" disabled={loading}>
-          {loading ? 'Logging in…' : 'Login'}
+        <button className="btn block lg mt-lg" disabled={loading}>
+          {loading ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
-      <p className="center mt-xl">
+      <div className="divider" />
+      <p className="center" style={{ fontSize: 14 }}>
         <span className="muted">Don't have an account? </span>
-        <Link to="/signup" className="link">SignUp</Link>
+        <Link to="/signup" className="link">Create one</Link>
       </p>
-      <p className="center mt-md">
-        <Link to="/admin-login" className="link">Sign in as Admin</Link>
+      <p className="center mt-sm" style={{ fontSize: 14 }}>
+        <Link to="/admin-login" className="link-muted">Sign in as admin →</Link>
       </p>
-    </PhoneLayout>
+    </AuthLayout>
   );
 }

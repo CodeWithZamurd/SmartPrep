@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
-import Brand from '../../components/Brand.jsx';
 import { AdminLayout } from '../../components/Layout.jsx';
-import Slider from '../../components/Slider.jsx';
 import { api } from '../../api.js';
 
 function timeAgo(d) {
@@ -15,11 +13,40 @@ function timeAgo(d) {
 
 function Toggle({ value, onChange }) {
   return (
-    <label style={{ position: 'relative', width: 50, height: 28, display: 'inline-block' }}>
-      <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} style={{ display: 'none' }} />
-      <span style={{ position: 'absolute', inset: 0, background: value ? 'var(--danger)' : 'var(--card)', borderRadius: 999 }} />
-      <span style={{ position: 'absolute', left: value ? 24 : 2, top: 2, width: 24, height: 24, borderRadius: 12, background: '#fff' }} />
+    <label className="toggle">
+      <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} />
+      <span className="slider" />
+      <span className="knob" />
     </label>
+  );
+}
+
+function SliderRow({ title, desc, value, min = 0, max = 100, suffix = '', onChange }) {
+  return (
+    <div className="card">
+      <div className="between">
+        <div>
+          <h3>{title}</h3>
+          <p className="subtitle mt-sm">{desc}</p>
+        </div>
+        <span style={{ color: 'var(--primary)', fontWeight: 900, fontSize: 26 }}>
+          {value}
+          {suffix}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="mt-md"
+      />
+      <div className="between">
+        <span className="muted" style={{ fontSize: 12 }}>{min}{suffix}</span>
+        <span className="muted" style={{ fontSize: 12 }}>{max}{suffix}</span>
+      </div>
+    </div>
   );
 }
 
@@ -58,79 +85,74 @@ export default function AdminSettings() {
 
   return (
     <AdminLayout>
-      <Brand />
-      <h1 className="title">System Settings</h1>
-      <p className="subtitle">Configure Platform behavior</p>
+      <h1>System Settings</h1>
+      <p className="subtitle mt-sm">Configure platform behavior, AI tuning, and security.</p>
 
-      <div className="tab-row">
-        <button className={'chip' + (tab === 'ai' ? ' active' : '')} onClick={() => setTab('ai')}>🤖 AI Settings</button>
-        <button className={'chip' + (tab === 'system' ? ' active' : '')} onClick={() => setTab('system')}>⚙️ System</button>
+      <div className="tabs mt-lg">
+        <button className={tab === 'ai' ? 'active' : ''} onClick={() => setTab('ai')}>🤖 AI Settings</button>
+        <button className={tab === 'system' ? 'active' : ''} onClick={() => setTab('system')}>⚙️ System & Security</button>
       </div>
 
       {tab === 'ai' && (
-        <>
-          <div className="card card-alt">
-            <div className="between">
-              <span style={{ fontWeight: 900 }}>AI Feedback Strictness</span>
-              <span style={{ color: 'var(--primary)', fontWeight: 900 }}>{ai.feedbackStrictness}%</span>
-            </div>
-            <p className="muted" style={{ fontSize: 12 }}>How critical should AI be?</p>
-            <Slider
-              value={ai.feedbackStrictness}
-              min={0}
-              max={100}
-              onChange={(v) => update({ feedbackStrictness: v })}
-              suffix="%"
-            />
-            <div className="between">
-              <span className="muted" style={{ fontSize: 11 }}>Lineant</span>
-              <span style={{ color: 'var(--orange)', fontSize: 11 }}>Strict</span>
-            </div>
-          </div>
-
-          <div className="card card-alt">
-            <div className="between">
-              <span style={{ fontWeight: 900 }}>Technical Questions Limit</span>
-              <span style={{ color: 'var(--primary)', fontWeight: 900 }}>{ai.technicalQuestionsLimit}</span>
-            </div>
-            <p className="muted" style={{ fontSize: 12 }}>Max Questions per interview</p>
-            <Slider value={ai.technicalQuestionsLimit} min={0} max={30} onChange={(v) => update({ technicalQuestionsLimit: v })} />
-          </div>
-
-          <div className="card card-alt">
-            <div className="between">
-              <span style={{ fontWeight: 900 }}>Session Timeout</span>
-              <span style={{ color: 'var(--primary)', fontWeight: 900 }}>{ai.sessionTimeoutMinutes}</span>
-            </div>
-            <p className="muted" style={{ fontSize: 12 }}>Minutes before auto-logout</p>
-            <Slider value={ai.sessionTimeoutMinutes} min={5} max={60} onChange={(v) => update({ sessionTimeoutMinutes: v })} suffix=" min" />
-          </div>
-        </>
+        <div className="grid-3">
+          <SliderRow
+            title="Feedback Strictness"
+            desc="How critical should the AI evaluator be?"
+            value={ai.feedbackStrictness}
+            min={0}
+            max={100}
+            suffix="%"
+            onChange={(v) => update({ feedbackStrictness: v })}
+          />
+          <SliderRow
+            title="Technical Questions Limit"
+            desc="Maximum questions per interview."
+            value={ai.technicalQuestionsLimit}
+            min={1}
+            max={30}
+            onChange={(v) => update({ technicalQuestionsLimit: v })}
+          />
+          <SliderRow
+            title="Session Timeout"
+            desc="Minutes before auto-logout."
+            value={ai.sessionTimeoutMinutes}
+            min={5}
+            max={60}
+            suffix=" min"
+            onChange={(v) => update({ sessionTimeoutMinutes: v })}
+          />
+        </div>
       )}
 
       {tab === 'system' && (
         <>
-          <h3>📊 Performance Metrics</h3>
-          <div className="row">
-            <div className="metric"><div style={{ color: 'var(--green)', fontSize: 22, fontWeight: 900 }}>{perf.uptimePct}%</div><div className="label">Uptime</div></div>
-            <div className="metric"><div style={{ color: 'var(--primary)', fontSize: 22, fontWeight: 900 }}>{perf.latencyMs} ms</div><div className="label">Latency</div></div>
-          </div>
-          <div className="row">
-            <div className="metric"><div style={{ color: 'var(--green)', fontSize: 22, fontWeight: 900 }}>{perf.dbSizeGB} GB</div><div className="label">DB Size</div></div>
-            <div className="metric"><div style={{ color: 'var(--danger)', fontSize: 22, fontWeight: 900 }}>{perf.apiCallsToday >= 1000 ? `${Math.round(perf.apiCallsToday / 1000)}K` : perf.apiCallsToday}</div><div className="label">API Calls/Day</div></div>
+          <h2 className="section-title mt-md">📊 Performance metrics</h2>
+          <div className="grid-4">
+            <div className="metric"><div className="value" style={{ color: 'var(--green)' }}>{perf.uptimePct}%</div><div className="label">Uptime</div></div>
+            <div className="metric"><div className="value" style={{ color: 'var(--primary)' }}>{perf.latencyMs} ms</div><div className="label">Latency</div></div>
+            <div className="metric"><div className="value" style={{ color: 'var(--green)' }}>{perf.dbSizeGB} GB</div><div className="label">DB Size</div></div>
+            <div className="metric"><div className="value" style={{ color: 'var(--orange)' }}>
+              {perf.apiCallsToday >= 1000 ? `${Math.round(perf.apiCallsToday / 1000)}K` : perf.apiCallsToday}
+            </div><div className="label">API Calls / day</div></div>
           </div>
 
-          <h3 className="mt-md">✅ Security & Backup</h3>
-          <div className="card card-alt">
-            <div className="between">
-              <span style={{ fontWeight: 900 }}>Last Backup</span>
-              <span className="muted">{timeAgo(sec.lastBackupAt)}</span>
+          <h2 className="section-title mt-xl">✅ Security & backup</h2>
+          <div className="grid-2">
+            <div className="card">
+              <div className="between">
+                <h3>Last backup</h3>
+                <span className="muted">{timeAgo(sec.lastBackupAt)}</span>
+              </div>
+              <p className="subtitle mt-sm">Run a manual backup of the database snapshot.</p>
+              <button className="btn outline mt-md" onClick={backup}>Run manual backup</button>
             </div>
-            <button className="btn outline mt-md" onClick={backup}>Run Manual Backup</button>
-          </div>
-          <div className="card card-alt between">
-            <span style={{ fontWeight: 900 }}>Two Factor Authentication</span>
-            <Toggle value={sec.twoFactorEnabled} onChange={(v) => update({ twoFactorEnabled: v })} />
+            <div className="card between">
+              <div>
+                <h3>Two-factor authentication</h3>
+                <p className="subtitle mt-sm">Require 2FA for admin accounts.</p>
+              </div>
+              <Toggle value={sec.twoFactorEnabled} onChange={(v) => update({ twoFactorEnabled: v })} />
+            </div>
           </div>
         </>
       )}

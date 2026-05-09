@@ -1,18 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Brand from '../components/Brand.jsx';
-import { PhoneLayout } from '../components/Layout.jsx';
+import { AppLayout } from '../components/Layout.jsx';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { api } from '../api.js';
 
 const TABS = [
-  { key: 'progress', label: 'Your Progress', icon: '📊' },
-  { key: 'interviews', label: 'AI Interviews', icon: '🤖' },
-  { key: 'premium', label: 'Premium', icon: '⭐' }
+  { key: 'progress', label: '📊 Your Progress' },
+  { key: 'interviews', label: '🤖 AI Interviews' },
+  { key: 'premium', label: '⭐ Premium' }
 ];
 
 export default function Profile() {
-  const { user, setUser, logout } = useAuth();
+  const { user, setUser } = useAuth();
   const nav = useNavigate();
   const [tab, setTab] = useState('progress');
   const [stats, setStats] = useState(null);
@@ -33,120 +32,147 @@ export default function Profile() {
     }
   }
 
-  function handleLogout() {
-    logout();
-    nav('/login');
-  }
-
   return (
-    <PhoneLayout>
-      <div className="between">
-        <Brand />
-        <div style={{ display: 'flex', gap: 16, fontSize: 18 }}>
-          <span style={{ cursor: 'pointer' }} onClick={() => nav('/settings')}>⚙️</span>
-          <span style={{ cursor: 'pointer' }} onClick={() => window.location.reload()}>↻</span>
-          <span style={{ cursor: 'pointer' }} onClick={handleLogout}>↪</span>
-        </div>
-      </div>
-      <h1 className="title">My Profile</h1>
-
-      <div style={{ background: 'var(--primary)', borderRadius: 16, padding: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ width: 56, height: 56, borderRadius: 28, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30 }}>
-          👤
-        </div>
-        <div style={{ fontSize: 20, fontWeight: 900 }}>{user?.name || 'User'}</div>
-      </div>
-
-      <div className="tab-row" style={{ justifyContent: 'space-around' }}>
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: tab === t.key ? 'var(--primary)' : 'var(--text-secondary)',
-              fontWeight: tab === t.key ? 700 : 400,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              fontSize: 11
-            }}
-          >
-            <span style={{ fontSize: 18 }}>{t.icon}</span>
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'progress' && (
-        <div className="card center">
-          <div style={{ fontSize: 48 }}>📊</div>
-          {stats?.totalSessions ? (
-            <>
-              <h3>{stats.totalSessions} interviews completed</h3>
-              <p className="subtitle">Average accuracy: {stats.accuracy}%</p>
-            </>
-          ) : (
-            <>
-              <h3>No Progress Data Available</h3>
-              <p className="subtitle">Start practicing your interviews to see your detailed progress here!</p>
-            </>
-          )}
-        </div>
-      )}
-
-      {tab === 'interviews' && (
-        <div className="card">
-          {sessions.length === 0 ? (
-            <div className="center">
-              <div style={{ fontSize: 48 }}>🤖</div>
-              <h3>No Mock Interviews Yet</h3>
-              <p className="subtitle">Start your first AI-powered interview to practice and improve your skills!</p>
-              <button className="btn mt-md" onClick={() => nav('/interview')}>
-                ▶ Start your first Interview
-              </button>
+    <AppLayout>
+      <div className="grid-2" style={{ gridTemplateColumns: '300px 1fr', alignItems: 'start' }}>
+        <aside className="card">
+          <div className="center">
+            <div
+              style={{
+                width: 96, height: 96, borderRadius: '50%',
+                background: 'var(--primary)', display: 'flex',
+                alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto', fontSize: 40, fontWeight: 900
+              }}
+            >
+              {(user?.name || '?').slice(0, 1).toUpperCase()}
             </div>
-          ) : (
-            sessions.map((s) => (
-              <div
-                key={s._id}
-                onClick={() => nav(`/feedback/${s._id}`)}
-                style={{ padding: '10px 0', borderBottom: '1px solid var(--divider)', cursor: 'pointer' }}
-              >
-                <div style={{ fontWeight: 700 }}>
-                  {(s.domain && s.domain.name) || s.domainSlug} · {s.difficulty}
+            <h2 className="mt-md">{user?.name}</h2>
+            <p className="muted" style={{ fontSize: 13 }}>{user?.email}</p>
+            <span className={'badge mt-sm ' + (user?.isPremium ? 'blue' : 'yellow')}>
+              {user?.isPremium ? '⭐ Premium' : 'Free plan'}
+            </span>
+          </div>
+
+          <div className="divider" />
+
+          <button className="btn block secondary" onClick={() => nav('/settings')}>⚙️ Settings</button>
+          <button className="btn block ghost mt-sm" onClick={() => nav('/evaluation-rules')}>
+            How is scoring calculated?
+          </button>
+        </aside>
+
+        <section>
+          <div className="tabs">
+            {TABS.map((t) => (
+              <button key={t.key} className={tab === t.key ? 'active' : ''} onClick={() => setTab(t.key)}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {tab === 'progress' && (
+            <>
+              <div className="grid-3">
+                <div className="metric">
+                  <div className="icon">❓</div>
+                  <div className="value">{stats?.totalQuestions || 0}</div>
+                  <div className="label">Questions answered</div>
                 </div>
-                <div className="muted" style={{ fontSize: 12 }}>
-                  Score {s.overallScore ?? '—'}% · {new Date(s.createdAt).toLocaleDateString()}
+                <div className="metric">
+                  <div className="icon">🎓</div>
+                  <div className="value">{stats?.totalSessions || 0}</div>
+                  <div className="label">Sessions</div>
+                </div>
+                <div className="metric">
+                  <div className="icon">📈</div>
+                  <div className="value">{stats?.accuracy || 0}%</div>
+                  <div className="label">Accuracy</div>
                 </div>
               </div>
-            ))
+              {!stats?.totalSessions && (
+                <div className="card mt-lg center">
+                  <p className="subtitle">
+                    Start practicing your interviews to see detailed progress here.
+                  </p>
+                  <button className="btn mt-md" onClick={() => nav('/interview')}>
+                    Start your first interview
+                  </button>
+                </div>
+              )}
+            </>
           )}
-        </div>
-      )}
 
-      {tab === 'premium' && (
-        <div className="card center">
-          <div style={{ fontSize: 48 }}>⭐</div>
-          <span style={{ background: 'var(--orange)', color: '#fff', padding: '4px 12px', borderRadius: 12, fontWeight: 900 }}>
-            🔥 75% OFF
-          </span>
-          <h3>Upgrade to Premium</h3>
-          <h2 style={{ color: 'var(--primary)' }}>Rs.600</h2>
-          <p className="subtitle">Unlock all features and remove ads</p>
-          <p className="subtitle">📈 Unlimited AI Mock Interviews</p>
-          <p className="subtitle">📚 All Practice Questions Unlocked</p>
-          <p className="subtitle">🚫 Ad-free experience</p>
-          {user?.isPremium ? (
-            <p style={{ color: 'var(--green)' }}>You are Premium ⭐</p>
-          ) : (
-            <button className="btn mt-md" style={{ background: 'var(--star)', color: '#1a1a1a' }} onClick={upgrade}>
-              ⭐ Upgrade Now
-            </button>
+          {tab === 'interviews' && (
+            <div className="table-wrap">
+              {sessions.length === 0 ? (
+                <div className="center" style={{ padding: 40 }}>
+                  <div style={{ fontSize: 56 }}>🤖</div>
+                  <h3 className="mt-md">No mock interviews yet</h3>
+                  <p className="subtitle mt-sm">Start your first AI-powered interview to practice and improve.</p>
+                  <button className="btn mt-md" onClick={() => nav('/interview')}>
+                    ▶ Start your first interview
+                  </button>
+                </div>
+              ) : (
+                <table className="tbl">
+                  <thead>
+                    <tr>
+                      <th>Domain</th>
+                      <th>Difficulty</th>
+                      <th>Score</th>
+                      <th>Date</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sessions.map((s) => (
+                      <tr key={s._id}>
+                        <td><strong>{(s.domain && s.domain.name) || s.domainSlug}</strong></td>
+                        <td className="muted">{s.difficulty}</td>
+                        <td>{s.overallScore != null ? `${s.overallScore}%` : '—'}</td>
+                        <td className="muted">{new Date(s.createdAt).toLocaleDateString()}</td>
+                        <td style={{ textAlign: 'right' }}>
+                          <button className="btn sm secondary" onClick={() => nav(`/feedback/${s._id}`)}>
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           )}
-        </div>
-      )}
-    </PhoneLayout>
+
+          {tab === 'premium' && (
+            <div className="card">
+              <div className="grid-2" style={{ alignItems: 'center' }}>
+                <div>
+                  <span className="badge" style={{ background: 'var(--orange)', color: '#fff' }}>🔥 75% OFF</span>
+                  <h2 className="mt-md">Upgrade to Premium</h2>
+                  <h1 style={{ color: 'var(--primary)', fontSize: 40 }}>Rs. 600</h1>
+                  <p className="subtitle">Unlock all features and remove ads</p>
+                  <ul style={{ paddingLeft: 18, lineHeight: 1.8 }}>
+                    <li>📈 Unlimited AI mock interviews</li>
+                    <li>📚 All practice questions unlocked</li>
+                    <li>🚫 Ad-free experience</li>
+                    <li>🎯 Advanced analytics dashboard</li>
+                  </ul>
+                  {user?.isPremium ? (
+                    <p style={{ color: 'var(--green)', fontWeight: 700 }}>You are Premium ⭐</p>
+                  ) : (
+                    <button className="btn lg mt-md" style={{ background: 'var(--star)', color: '#1a1a1a' }} onClick={upgrade}>
+                      ⭐ Upgrade now
+                    </button>
+                  )}
+                </div>
+                <div className="center" style={{ fontSize: 160 }}>⭐</div>
+              </div>
+            </div>
+          )}
+        </section>
+      </div>
+    </AppLayout>
   );
 }

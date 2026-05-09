@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import Brand from '../components/Brand.jsx';
-import { PhoneLayout } from '../components/Layout.jsx';
+import { AppLayout } from '../components/Layout.jsx';
 import { api } from '../api.js';
 
 const DIFFS = [
@@ -9,6 +8,8 @@ const DIFFS = [
   { key: 'medium', label: 'Medium' },
   { key: 'hard', label: 'Hard' }
 ];
+
+const DIFF_COLOR = { easy: 'green', medium: 'yellow', hard: 'red' };
 
 export default function Practice() {
   const [tab, setTab] = useState('all');
@@ -55,41 +56,31 @@ export default function Practice() {
   const list = tab === 'all' ? questions : bookmarks;
 
   return (
-    <PhoneLayout>
-      <Brand />
-      <h1 className="title">Practice Questions</h1>
-
-      <div className="search-box">
-        <input
-          placeholder="Search questions..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && load()}
-        />
-        <span style={{ cursor: 'pointer' }} onClick={load}>🔍</span>
+    <AppLayout>
+      <div className="between">
+        <div>
+          <h1>Practice Questions</h1>
+          <p className="subtitle mt-sm">Search, filter, and bookmark questions across every tech domain.</p>
+        </div>
       </div>
 
-      <div className="tab-row" style={{ justifyContent: 'space-around' }}>
-        <button
-          onClick={() => setTab('all')}
-          style={{ background: 'none', border: 'none', color: tab === 'all' ? 'var(--star)' : 'var(--text-secondary)', fontWeight: tab === 'all' ? 900 : 400 }}
-        >
-          ❓ All Questions
-        </button>
-        <button
-          onClick={() => setTab('bookmarked')}
-          style={{ background: 'none', border: 'none', color: tab === 'bookmarked' ? 'var(--star)' : 'var(--text-secondary)', fontWeight: tab === 'bookmarked' ? 900 : 400 }}
-        >
-          🔖 Bookmarked
-        </button>
-      </div>
+      <div className="grid-2 mt-lg" style={{ gridTemplateColumns: '280px 1fr', alignItems: 'start' }}>
+        <aside className="card">
+          <h3>Filters</h3>
+          <label className="label">Search</label>
+          <div className="search-box">
+            <input
+              placeholder="Search questions..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && load()}
+            />
+            <span style={{ cursor: 'pointer' }} onClick={load}>🔍</span>
+          </div>
 
-      {tab === 'all' && (
-        <div className="card">
-          <h4 style={{ margin: 0 }}>Filters</h4>
-          <p className="muted" style={{ fontSize: 12 }}>Category</p>
-          <div className="tab-row">
-            <button className={'chip' + (!domain ? ' active' : '')} onClick={() => setDomain('')}>All</button>
+          <label className="label">Domain</label>
+          <div className="flex-col gap-sm">
+            <button className={'chip' + (!domain ? ' active' : '')} onClick={() => setDomain('')}>All domains</button>
             {domains.map((d) => (
               <button
                 key={d._id}
@@ -100,57 +91,88 @@ export default function Practice() {
               </button>
             ))}
           </div>
-          <p className="muted" style={{ fontSize: 12 }}>Difficulty</p>
-          <div className="tab-row">
+
+          <label className="label">Difficulty</label>
+          <div className="flex gap-sm" style={{ flexWrap: 'wrap' }}>
             {DIFFS.map((d) => (
-              <button
-                key={d.key}
-                className={'chip' + (diff === d.key ? ' active' : '')}
-                onClick={() => setDiff(d.key)}
-              >
+              <button key={d.key} className={'chip' + (diff === d.key ? ' active' : '')} onClick={() => setDiff(d.key)}>
                 {d.label}
               </button>
             ))}
           </div>
-        </div>
-      )}
+        </aside>
 
-      <p className="mt-md">{tab === 'all' ? `${list.length} Questions found` : list.length === 0 ? '' : `${list.length} bookmarked`}</p>
-      {tab === 'bookmarked' && list.length === 0 && (
-        <div className="card center">
-          <div style={{ fontSize: 32 }}>🔖</div>
-          <h4>No bookmarked questions</h4>
-          <p className="muted">Bookmark questions you want to review later</p>
-          <button className="btn" onClick={load}>↻ Refresh</button>
-        </div>
-      )}
-
-      {list.map((q) => (
-        <div key={q._id} className="card" style={{ cursor: 'pointer' }} onClick={() => setExpanded(expanded === q._id ? null : q._id)}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ flex: 1 }}>{q.questionText}</span>
-            <span
-              style={{ color: bookmarkIds.has(q._id) ? 'var(--star)' : 'var(--text-muted)', cursor: 'pointer' }}
-              onClick={(e) => { e.stopPropagation(); toggleBookmark(q._id); }}
-            >
-              🔖
-            </span>
-            <span className="muted">{expanded === q._id ? '▲' : '▼'}</span>
+        <section>
+          <div className="tabs">
+            <button className={tab === 'all' ? 'active' : ''} onClick={() => setTab('all')}>
+              ❓ All Questions
+            </button>
+            <button className={tab === 'bookmarked' ? 'active' : ''} onClick={() => setTab('bookmarked')}>
+              🔖 Bookmarked
+            </button>
           </div>
-          {expanded === q._id && (
-            <div className="mt-md">
-              <h4 style={{ color: 'var(--primary)', margin: 0 }}>Answer</h4>
-              <p className="subtitle">{q.answerText || 'No answer provided.'}</p>
-              {q.explanation && (
-                <>
-                  <h4 style={{ color: 'var(--primary)', margin: 0 }}>Explanation</h4>
-                  <p className="subtitle">{q.explanation}</p>
-                </>
-              )}
+
+          <p className="muted mt-sm">
+            {tab === 'all' ? `${list.length} questions found` : `${list.length} bookmarked`}
+          </p>
+
+          {tab === 'bookmarked' && list.length === 0 && (
+            <div className="card center mt-md">
+              <div style={{ fontSize: 36 }}>🔖</div>
+              <h3 className="mt-md">No bookmarked questions yet</h3>
+              <p className="subtitle mt-sm">Bookmark questions you want to review later.</p>
             </div>
           )}
-        </div>
-      ))}
-    </PhoneLayout>
+
+          <div className="flex-col gap-md mt-md">
+            {list.map((q) => (
+              <div key={q._id} className="card">
+                <div className="between" style={{ alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1, paddingRight: 16 }}>
+                    <p style={{ fontWeight: 600 }}>{q.questionText}</p>
+                    <div className="flex gap-sm mt-sm">
+                      {q.domain?.name && <span className="badge blue">{q.domain.name}</span>}
+                      {q.difficultyLevel && (
+                        <span className={'badge ' + DIFF_COLOR[q.difficultyLevel]}>
+                          {q.difficultyLevel}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-sm">
+                    <button
+                      className="btn sm secondary"
+                      style={{ color: bookmarkIds.has(q._id) ? 'var(--star)' : undefined }}
+                      onClick={() => toggleBookmark(q._id)}
+                    >
+                      🔖 {bookmarkIds.has(q._id) ? 'Saved' : 'Save'}
+                    </button>
+                    <button
+                      className="btn sm secondary"
+                      onClick={() => setExpanded(expanded === q._id ? null : q._id)}
+                    >
+                      {expanded === q._id ? 'Hide' : 'Show'} answer
+                    </button>
+                  </div>
+                </div>
+                {expanded === q._id && (
+                  <div className="mt-md">
+                    <div className="divider" />
+                    <h4 style={{ color: 'var(--primary)' }}>Answer</h4>
+                    <p className="subtitle mt-sm">{q.answerText || 'No answer provided.'}</p>
+                    {q.explanation && (
+                      <>
+                        <h4 style={{ color: 'var(--primary)' }} className="mt-md">Explanation</h4>
+                        <p className="subtitle mt-sm">{q.explanation}</p>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    </AppLayout>
   );
 }

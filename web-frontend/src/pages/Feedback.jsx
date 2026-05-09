@@ -1,34 +1,37 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import Brand from '../components/Brand.jsx';
-import { PhoneLayout } from '../components/Layout.jsx';
+import { AppLayout } from '../components/Layout.jsx';
 import ProgressRing from '../components/ProgressRing.jsx';
 import { api } from '../api.js';
 
-function MetricRow({ items }) {
+function ScoreBox({ icon, title, score, color = 'var(--green)' }) {
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-      {items.map((m) => (
-        <div key={m.label} style={{ flex: '1 1 45%' }}>
-          <div style={{ color: m.color, fontSize: 12, fontWeight: 700 }}>{m.label}</div>
-          <div style={{ fontWeight: 700 }}>{m.value}/100</div>
-        </div>
-      ))}
+    <div className="card">
+      <div className="between">
+        <h3>{icon} {title}</h3>
+        <span style={{ color, fontWeight: 900, fontSize: 22 }}>{score}%</span>
+      </div>
+      <div className="progress-track mt-md">
+        <div className="progress-fill" style={{ width: `${score}%`, background: color }} />
+      </div>
     </div>
   );
 }
 
-function ScoreCard({ icon, title, score, color = 'var(--green)', children }) {
+function MetricGrid({ items }) {
   return (
-    <div className="card card-alt">
-      <div className="between">
-        <span style={{ fontWeight: 900 }}>
-          {icon} {title}
-        </span>
-        <span style={{ color, fontWeight: 900 }}>{score}%</span>
-      </div>
-      <div className="muted">Score:</div>
-      <div className="card mt-md">{children}</div>
+    <div className="grid-2 mt-md">
+      {items.map((m) => (
+        <div key={m.label} className="card alt tight">
+          <div className="between">
+            <span className="muted" style={{ fontSize: 13 }}>{m.label}</span>
+            <span style={{ color: m.color, fontWeight: 700 }}>{m.value}/100</span>
+          </div>
+          <div className="progress-track mt-sm" style={{ height: 6 }}>
+            <div className="progress-fill" style={{ width: `${m.value}%`, background: m.color }} />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -37,7 +40,6 @@ export default function Feedback() {
   const { sessionId } = useParams();
   const nav = useNavigate();
   const [data, setData] = useState(null);
-  const [tab, setTab] = useState('overview');
 
   useEffect(() => {
     api.get(`/feedback/session/${sessionId}`).then((r) => setData(r.data)).catch(() => {});
@@ -45,9 +47,9 @@ export default function Feedback() {
 
   if (!data) {
     return (
-      <PhoneLayout>
-        <p className="center mt-xl">Loading…</p>
-      </PhoneLayout>
+      <AppLayout narrow>
+        <p className="center mt-xl">Loading feedback…</p>
+      </AppLayout>
     );
   }
 
@@ -65,83 +67,68 @@ export default function Feedback() {
   }
 
   return (
-    <PhoneLayout>
-      <Brand />
-      <h1 className="title">AI Interview Feedback</h1>
-
-      {tab === 'overview' && (
-        <>
-          <p className="subtitle">Here's a complete feedback of your interview</p>
-          <p>
-            <span style={{ fontWeight: 700 }}>Category: </span>
-            <span style={{ color: 'var(--star)', fontWeight: 900 }}>
-              {session.domain?.name || session.domainSlug}
-            </span>
+    <AppLayout>
+      <div className="between">
+        <div>
+          <h1>AI Interview Feedback</h1>
+          <p className="subtitle mt-sm">
+            Category: <strong style={{ color: 'var(--star)' }}>{session.domain?.name || session.domainSlug}</strong>
           </p>
+        </div>
+        <div className="btn-row">
+          <button className="btn secondary" onClick={() => nav(`/question-details/${sessionId}`)}>
+            See question details
+          </button>
+          <button className="btn secondary" onClick={() => nav(`/suggestions/${sessionId}`)}>
+            See suggestions
+          </button>
+          <button className="btn outline" onClick={downloadReport}>Download report</button>
+        </div>
+      </div>
+
+      <div className="grid-2 mt-lg" style={{ gridTemplateColumns: '320px 1fr', alignItems: 'start' }}>
+        <div className="card center">
           <h3>Overall Performance</h3>
-          <div className="center"><ProgressRing value={overall} label={verdict} /></div>
-
-          <h3>Detailed Feedback</h3>
-          <ScoreCard icon="📈" title="Technical Accuracy" score={feedback.technicalScore || 0}>
-            <div>
-              Question Correct:{' '}
-              <span style={{ color: 'var(--green)', fontWeight: 900 }}>{correct}/{total}</span>
-            </div>
-          </ScoreCard>
-          <ScoreCard icon="🎤" title="Voice Analysis" score={feedback.voiceScore || 0}>
-            <MetricRow
-              items={[
-                { label: 'Filler Words', value: session.voiceMetrics?.fillerWords ?? 0, color: 'var(--yellow)' },
-                { label: 'Pacing', value: session.voiceMetrics?.pacing ?? 0, color: 'var(--green)' },
-                { label: 'Clarity', value: session.voiceMetrics?.clarity ?? 0, color: 'var(--red)' },
-                { label: 'Tone and Confidence', value: session.voiceMetrics?.toneConfidence ?? 0, color: 'var(--green)' }
-              ]}
-            />
-          </ScoreCard>
-          <p className="link" onClick={() => setTab('detailed')} style={{ textAlign: 'right' }}>
-            See Detailed →
-          </p>
-        </>
-      )}
-
-      {tab === 'detailed' && (
-        <>
-          <h3>Detailed Feedback</h3>
-          <ScoreCard icon="📈" title="Technical Accuracy" score={feedback.technicalScore || 0}>
-            <div>
-              Question Correct:{' '}
-              <span style={{ color: 'var(--green)', fontWeight: 900 }}>{correct}/{total}</span>
-            </div>
-          </ScoreCard>
-          <ScoreCard icon="🎤" title="Voice Analysis" score={feedback.voiceScore || 0}>
-            <MetricRow
-              items={[
-                { label: 'Filler Words', value: session.voiceMetrics?.fillerWords ?? 0, color: 'var(--yellow)' },
-                { label: 'Pacing', value: session.voiceMetrics?.pacing ?? 0, color: 'var(--green)' },
-                { label: 'Clarity', value: session.voiceMetrics?.clarity ?? 0, color: 'var(--red)' },
-                { label: 'Tone and Confidence', value: session.voiceMetrics?.toneConfidence ?? 0, color: 'var(--green)' }
-              ]}
-            />
-          </ScoreCard>
-          <ScoreCard icon="🧍" title="Body Language Analysis" score={feedback.bodyLanguageScore || 0}>
-            <MetricRow
-              items={[
-                { label: 'Eye Contact', value: session.bodyMetrics?.eyeContact ?? 0, color: 'var(--green)' },
-                { label: 'Facial Sentiment', value: session.bodyMetrics?.facialSentiment ?? 0, color: 'var(--yellow)' },
-                { label: 'Fidgeting Detection', value: session.bodyMetrics?.fidgeting ?? 0, color: 'var(--red)' },
-                { label: 'Posture', value: session.bodyMetrics?.posture ?? 0, color: 'var(--green)' }
-              ]}
-            />
-          </ScoreCard>
-          <p className="link" onClick={() => nav(`/question-details/${sessionId}`)} style={{ textAlign: 'right' }}>
-            See Question Details →
-          </p>
-          <div className="btn-row mt-lg">
-            <button className="btn" onClick={() => nav(`/suggestions/${sessionId}`)}>See Suggestions</button>
-            <button className="btn outline" onClick={downloadReport}>Download Report</button>
+          <div className="mt-lg" style={{ display: 'flex', justifyContent: 'center' }}>
+            <ProgressRing value={overall} label={verdict} size={200} />
           </div>
-        </>
-      )}
-    </PhoneLayout>
+          <p className="muted mt-md" style={{ fontSize: 13 }}>
+            {correct}/{total} questions correct
+          </p>
+        </div>
+
+        <div className="flex-col gap-md">
+          <ScoreBox icon="📈" title="Technical Accuracy" score={feedback.technicalScore || 0} />
+          <ScoreBox icon="🎤" title="Voice Analysis" score={feedback.voiceScore || 0} color="var(--primary)" />
+          <ScoreBox icon="🧍" title="Body Language" score={feedback.bodyLanguageScore || 0} color="var(--orange)" />
+        </div>
+      </div>
+
+      <h2 className="section-title mt-xl">Detailed metrics</h2>
+      <div className="grid-2">
+        <div className="card">
+          <h3>🎤 Voice analysis</h3>
+          <MetricGrid
+            items={[
+              { label: 'Filler Words', value: session.voiceMetrics?.fillerWords ?? 0, color: 'var(--yellow)' },
+              { label: 'Pacing', value: session.voiceMetrics?.pacing ?? 0, color: 'var(--green)' },
+              { label: 'Clarity', value: session.voiceMetrics?.clarity ?? 0, color: 'var(--red)' },
+              { label: 'Tone & Confidence', value: session.voiceMetrics?.toneConfidence ?? 0, color: 'var(--green)' }
+            ]}
+          />
+        </div>
+        <div className="card">
+          <h3>🧍 Body language</h3>
+          <MetricGrid
+            items={[
+              { label: 'Eye Contact', value: session.bodyMetrics?.eyeContact ?? 0, color: 'var(--green)' },
+              { label: 'Facial Sentiment', value: session.bodyMetrics?.facialSentiment ?? 0, color: 'var(--yellow)' },
+              { label: 'Fidgeting', value: session.bodyMetrics?.fidgeting ?? 0, color: 'var(--red)' },
+              { label: 'Posture', value: session.bodyMetrics?.posture ?? 0, color: 'var(--green)' }
+            ]}
+          />
+        </div>
+      </div>
+    </AppLayout>
   );
 }
