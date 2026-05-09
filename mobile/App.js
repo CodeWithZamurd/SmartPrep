@@ -29,6 +29,14 @@ import QuestionDetailsScreen from './src/screens/QuestionDetailsScreen';
 import SuggestionsScreen from './src/screens/SuggestionsScreen';
 import ResultScreen from './src/screens/ResultScreen';
 
+import AdminLoginScreen from './src/screens/admin/AdminLoginScreen';
+import AdminDashboardScreen from './src/screens/admin/AdminDashboardScreen';
+import AdminInsightsScreen from './src/screens/admin/AdminInsightsScreen';
+import AdminUsersScreen from './src/screens/admin/AdminUsersScreen';
+import AdminQuestionsScreen from './src/screens/admin/AdminQuestionsScreen';
+import AdminAddQuestionScreen from './src/screens/admin/AdminAddQuestionScreen';
+import AdminSettingsScreen from './src/screens/admin/AdminSettingsScreen';
+
 const Stack = createNativeStackNavigator();
 
 const navTheme = {
@@ -44,32 +52,45 @@ const navTheme = {
 };
 
 function Routes() {
-  const { token, loading } = useAuth();
+  const { token, user, loading } = useAuth();
   if (loading) return null;
+  const isAdmin = user?.role === 'admin';
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {token ? (
-        <>
-          <Stack.Screen name="Home" component={HomeScreen} />
-          <Stack.Screen name="EvaluationRules" component={EvaluationRulesScreen} />
-          <Stack.Screen name="DailyChallenge" component={DailyChallengeScreen} />
-          <Stack.Screen name="Profile" component={ProfileScreen} />
-          <Stack.Screen name="Settings" component={SettingsScreen} />
-          <Stack.Screen name="Practice" component={PracticeScreen} />
-          <Stack.Screen name="InterviewDomain" component={InterviewDomainScreen} />
-          <Stack.Screen name="InterviewSetup" component={SetupScreen} />
-          <Stack.Screen name="Interview" component={InterviewScreen} />
-          <Stack.Screen name="Feedback" component={FeedbackScreen} />
-          <Stack.Screen name="QuestionDetails" component={QuestionDetailsScreen} />
-          <Stack.Screen name="Suggestions" component={SuggestionsScreen} />
-          <Stack.Screen name="Result" component={ResultScreen} />
-          <Stack.Screen name="LoginAgain" component={LoginAgainScreen} />
-        </>
+        isAdmin ? (
+          <>
+            <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
+            <Stack.Screen name="AdminInsights" component={AdminInsightsScreen} />
+            <Stack.Screen name="AdminUsers" component={AdminUsersScreen} />
+            <Stack.Screen name="AdminQuestions" component={AdminQuestionsScreen} />
+            <Stack.Screen name="AdminAddQuestion" component={AdminAddQuestionScreen} />
+            <Stack.Screen name="AdminSettings" component={AdminSettingsScreen} />
+          </>
+        ) : (
+          <>
+            <Stack.Screen name="Home" component={HomeScreen} />
+            <Stack.Screen name="EvaluationRules" component={EvaluationRulesScreen} />
+            <Stack.Screen name="DailyChallenge" component={DailyChallengeScreen} />
+            <Stack.Screen name="Profile" component={ProfileScreen} />
+            <Stack.Screen name="Settings" component={SettingsScreen} />
+            <Stack.Screen name="Practice" component={PracticeScreen} />
+            <Stack.Screen name="InterviewDomain" component={InterviewDomainScreen} />
+            <Stack.Screen name="InterviewSetup" component={SetupScreen} />
+            <Stack.Screen name="Interview" component={InterviewScreen} />
+            <Stack.Screen name="Feedback" component={FeedbackScreen} />
+            <Stack.Screen name="QuestionDetails" component={QuestionDetailsScreen} />
+            <Stack.Screen name="Suggestions" component={SuggestionsScreen} />
+            <Stack.Screen name="Result" component={ResultScreen} />
+            <Stack.Screen name="LoginAgain" component={LoginAgainScreen} />
+          </>
+        )
       ) : (
         <>
           <Stack.Screen name="Splash" component={SplashScreen} />
           <Stack.Screen name="Login" component={LoginScreen} />
           <Stack.Screen name="Signup" component={SignupScreen} />
+          <Stack.Screen name="AdminLogin" component={AdminLoginScreen} />
         </>
       )}
     </Stack.Navigator>

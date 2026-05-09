@@ -89,4 +89,32 @@ router.patch('/:id/approve', requireAuth, async (req, res, next) => {
   }
 });
 
+router.patch('/:id', requireAuth, async (req, res, next) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    const allowed = ['questionText', 'answerText', 'explanation', 'difficultyLevel', 'category', 'domain', 'status'];
+    const patch = {};
+    for (const k of allowed) if (req.body[k] !== undefined) patch[k] = req.body[k];
+    const q = await Question.findByIdAndUpdate(req.params.id, patch, { new: true }).populate(
+      'domain',
+      'name slug'
+    );
+    if (!q) return res.status(404).json({ error: 'Not found' });
+    res.json({ question: q });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.delete('/:id', requireAuth, async (req, res, next) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    const q = await Question.findByIdAndDelete(req.params.id);
+    if (!q) return res.status(404).json({ error: 'Not found' });
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
 export default router;
