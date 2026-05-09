@@ -10,6 +10,7 @@ export async function requireAuth(req, res, next) {
     const user = await User.findById(payload.sub);
     if (!user) return res.status(401).json({ error: 'User not found' });
     req.user = user;
+    User.updateOne({ _id: user._id }, { lastActiveAt: new Date() }).catch(() => {});
     next();
   } catch (e) {
     return res.status(401).json({ error: 'Invalid token' });

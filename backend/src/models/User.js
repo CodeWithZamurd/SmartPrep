@@ -16,7 +16,9 @@ const userSchema = new mongoose.Schema(
       notificationsEnabled: { type: Boolean, default: true }
     },
     dailySessionCount: { type: Number, default: 0 },
-    dailySessionDate: { type: String, default: '' }
+    dailySessionDate: { type: String, default: '' },
+    status: { type: String, enum: ['active', 'needs_help', 'inactive'], default: 'active' },
+    lastActiveAt: { type: Date, default: Date.now }
   },
   { timestamps: true }
 );

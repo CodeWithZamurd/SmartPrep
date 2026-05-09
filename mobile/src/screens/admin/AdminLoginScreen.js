@@ -1,31 +1,27 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable
-} from 'react-native';
-import { useAuth } from '../context/AuthContext';
-import Button from '../components/Button';
-import { Screen, Brand } from '../components/Screen';
-import { colors, radii, spacing } from '../theme';
+import { View, Text, TextInput, StyleSheet, Alert, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { Screen, Brand } from '../../components/Screen';
+import Button from '../../components/Button';
+import { useAuth } from '../../context/AuthContext';
+import { colors, radii, spacing } from '../../theme';
+import { api } from '../../services/api';
 
-export default function LoginScreen({ navigation }) {
+export default function AdminLoginScreen({ navigation }) {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  async function handleLogin() {
+  async function submit() {
     if (!email || !password) return Alert.alert('Missing', 'Email and password are required');
     setLoading(true);
     try {
       await login(email.trim(), password);
+      const { data } = await api.get('/auth/me');
+      if (data.user.role !== 'admin') {
+        Alert.alert('Access denied', 'This account is not an admin.');
+      }
     } catch (e) {
       Alert.alert('Login failed', e?.response?.data?.error || e.message);
     } finally {
@@ -37,8 +33,10 @@ export default function LoginScreen({ navigation }) {
     <Screen>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Brand />
-        <Text style={styles.title}>Welcome{'\n'}Back!</Text>
-        <Text style={styles.subtitle}>Login to continue your journey!</Text>
+        <Text style={styles.title}>Sign in as{'\n'}Admin</Text>
+        <Pressable onPress={() => navigation.replace('Login')}>
+          <Text style={styles.linkCenter}>Login here</Text>
+        </Pressable>
 
         <Text style={styles.label}>EMAIL*</Text>
         <TextInput
@@ -66,29 +64,21 @@ export default function LoginScreen({ navigation }) {
           </Pressable>
         </View>
 
-        <Pressable onPress={() => Alert.alert('Forgot password', 'Coming soon')} style={{ alignSelf: 'flex-end' }}>
-          <Text style={styles.link}>Forgot Password? <Text style={styles.linkBold}>Click here</Text></Text>
-        </Pressable>
-
-        <Button title="Login" onPress={handleLogin} loading={loading} style={{ marginTop: spacing.lg }} />
-
-        <Pressable onPress={() => navigation.navigate('Signup')} style={{ alignSelf: 'center', marginTop: spacing.xl }}>
-          <Text style={styles.bottomTxt}>
-            Don't have an account? <Text style={styles.linkBold}>SignUp</Text>
+        <Pressable onPress={() => Alert.alert('Forgot password', 'Contact support.')} style={{ alignSelf: 'flex-end' }}>
+          <Text style={styles.link}>
+            Forgot Password? <Text style={styles.linkBold}>Click here</Text>
           </Text>
         </Pressable>
 
-        <Pressable onPress={() => navigation.navigate('AdminLogin')} style={{ alignSelf: 'center', marginTop: spacing.md }}>
-          <Text style={styles.linkBold}>Sign in as Admin</Text>
-        </Pressable>
+        <Button title="Login" onPress={submit} loading={loading} style={{ marginTop: spacing.lg }} />
       </KeyboardAvoidingView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  title: { color: colors.primary, fontSize: 44, fontWeight: '900', lineHeight: 48, marginTop: spacing.md },
-  subtitle: { color: colors.textSecondary, marginVertical: spacing.lg, textAlign: 'center' },
+  title: { color: colors.primary, fontSize: 40, fontWeight: '900', lineHeight: 44, marginTop: spacing.md },
+  linkCenter: { color: colors.textSecondary, textAlign: 'center', marginVertical: spacing.lg },
   label: { color: colors.textSecondary, fontWeight: '700', fontSize: 12, marginTop: spacing.md, marginBottom: 6 },
   input: {
     backgroundColor: colors.inputBg,
@@ -102,6 +92,5 @@ const styles = StyleSheet.create({
   inputRow: { flexDirection: 'row', alignItems: 'center' },
   eye: { position: 'absolute', right: 12, padding: 8 },
   link: { color: colors.textSecondary, marginTop: 6, fontSize: 12 },
-  linkBold: { color: colors.primary, fontWeight: '700' },
-  bottomTxt: { color: colors.textSecondary }
+  linkBold: { color: colors.primary, fontWeight: '700' }
 });

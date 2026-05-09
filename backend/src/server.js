@@ -15,6 +15,7 @@ import notificationsRoutes from './routes/notifications.js';
 import feedbackRoutes from './routes/feedback.js';
 import reportsRoutes from './routes/reports.js';
 import aiSettingsRoutes from './routes/aiSettings.js';
+import adminRoutes from './routes/admin.js';
 
 const app = express();
 
@@ -35,6 +36,7 @@ app.use('/notifications', notificationsRoutes);
 app.use('/feedback', feedbackRoutes);
 app.use('/reports', reportsRoutes);
 app.use('/ai-settings', aiSettingsRoutes);
+app.use('/admin', adminRoutes);
 
 app.use((err, _req, res, _next) => {
   console.error(err);
