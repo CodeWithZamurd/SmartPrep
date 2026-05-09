@@ -4,29 +4,51 @@ import FormData from 'form-data';
 const baseURL = process.env.AI_SERVICE_URL || 'http://localhost:5000';
 const ai = axios.create({ baseURL, timeout: 60000 });
 
+function rethrow(label, err) {
+  const upstream = err?.response?.data;
+  const body = typeof upstream === 'string' ? upstream : JSON.stringify(upstream);
+  const status = err?.response?.status;
+  const code = err?.code;
+  const msg = `[ai-service] ${label} failed: ${code || ''} ${status || ''} ${body || err.message}`.trim();
+  console.error(msg);
+  const e = new Error(msg);
+  e.status = 502;
+  throw e;
+}
+
 export async function generateQuestion({ domain, difficulty, history }) {
-  const { data } = await ai.post('/generate-question', { domain, difficulty, history });
-  return data;
+  try {
+    const { data } = await ai.post('/generate-question', { domain, difficulty, history });
+    return data;
+  } catch (e) { rethrow('generateQuestion', e); }
 }
 
 export async function transcribeAudio(buffer, filename = 'answer.m4a') {
-  const form = new FormData();
-  form.append('file', buffer, { filename });
-  const { data } = await ai.post('/transcribe', form, { headers: form.getHeaders() });
-  return data;
+  try {
+    const form = new FormData();
+    form.append('file', buffer, { filename });
+    const { data } = await ai.post('/transcribe', form, { headers: form.getHeaders() });
+    return data;
+  } catch (e) { rethrow('transcribeAudio', e); }
 }
 
 export async function evaluateAnswer({ question, transcript, domain, difficulty }) {
-  const { data } = await ai.post('/evaluate-answer', { question, transcript, domain, difficulty });
-  return data;
+  try {
+    const { data } = await ai.post('/evaluate-answer', { question, transcript, domain, difficulty });
+    return data;
+  } catch (e) { rethrow('evaluateAnswer', e); }
 }
 
 export async function generateFeedback({ domain, turns }) {
-  const { data } = await ai.post('/generate-feedback', { domain, turns });
-  return data;
+  try {
+    const { data } = await ai.post('/generate-feedback', { domain, turns });
+    return data;
+  } catch (e) { rethrow('generateFeedback', e); }
 }
 
 export async function generateChallenge({ domain }) {
-  const { data } = await ai.post('/generate-challenge', { domain });
-  return data;
+  try {
+    const { data } = await ai.post('/generate-challenge', { domain });
+    return data;
+  } catch (e) { rethrow('generateChallenge', e); }
 }
