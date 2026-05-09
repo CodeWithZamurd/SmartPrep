@@ -7,8 +7,8 @@ from pydantic import BaseModel
 
 from ..clients.openai_client import client, chat_model, eval_model, whisper_model
 from ..prompts.templates import (
-    DOMAIN_LABELS,
-    ANCHORS,
+    domain_label,
+    domain_anchors,
     system_question_gen,
     system_evaluator,
 )
@@ -22,15 +22,15 @@ class HistoryItem(BaseModel):
 
 
 class GenerateQuestionReq(BaseModel):
-    domain: str = "software"
+    domain: str = "web"
     difficulty: str = "medium"
     history: List[HistoryItem] = []
 
 
 @router.post("/generate-question")
 def generate_question(req: GenerateQuestionReq):
-    domain_label = DOMAIN_LABELS.get(req.domain, DOMAIN_LABELS["software"])
-    anchors = ANCHORS.get(req.domain, ANCHORS["software"])
+    label = domain_label(req.domain)
+    anchors = domain_anchors(req.domain)
     asked = {h.question.strip().lower() for h in req.history}
     pool = [a for a in anchors if a.strip().lower() not in asked]
     seed_anchor = random.choice(pool) if pool else random.choice(anchors)
@@ -38,7 +38,7 @@ def generate_question(req: GenerateQuestionReq):
     history_text = "\n".join(f"- {h.question}" for h in req.history) or "(none)"
 
     user_prompt = (
-        f"Domain: {domain_label}\n"
+        f"Domain: {label}\n"
         f"Difficulty: {req.difficulty}\n"
         f"Already asked:\n{history_text}\n\n"
         f"Use this anchor as inspiration (rewrite or follow up): \"{seed_anchor}\"\n"
@@ -55,7 +55,7 @@ def generate_question(req: GenerateQuestionReq):
         temperature=0.7,
     )
     data = json.loads(resp.choices[0].message.content)
-    return {"question": data["question"]}
+    return {"question": data.get("question") or seed_anchor}
 
 
 @router.post("/transcribe")
@@ -63,7 +63,6 @@ async def transcribe(file: UploadFile = File(...)):
     contents = await file.read()
     if not contents:
         raise HTTPException(400, "Empty audio")
-    # OpenAI SDK requires a file-like object with a name
     import io
     bio = io.BytesIO(contents)
     bio.name = file.filename or "audio.m4a"
@@ -77,15 +76,15 @@ async def transcribe(file: UploadFile = File(...)):
 class EvaluateReq(BaseModel):
     question: str
     transcript: str
-    domain: str = "software"
+    domain: str = "web"
     difficulty: str = "medium"
 
 
 @router.post("/evaluate-answer")
 def evaluate_answer(req: EvaluateReq):
-    domain_label = DOMAIN_LABELS.get(req.domain, DOMAIN_LABELS["software"])
+    label = domain_label(req.domain)
     user_prompt = (
-        f"Domain: {domain_label}\n"
+        f"Domain: {label}\n"
         f"Current difficulty: {req.difficulty}\n"
         f"Question: {req.question}\n"
         f"Candidate answer (transcribed): {req.transcript}\n\n"
