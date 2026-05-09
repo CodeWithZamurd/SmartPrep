@@ -11,24 +11,34 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": ["**/*"],
-    "ios": { "supportsTablet": true, "bundleIdentifier": "com.smartprep.app" },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.smartprep.app"
+    },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "package": "com.smartprep.app",
-      "permissions": ["RECORD_AUDIO"]
+      "permissions": [
+        "RECORD_AUDIO"
+      ]
     },
     "extra": {
-      "apiBaseUrl": "http://10.0.2.2:4000"
+      "apiBaseUrl": "http://192.168.1.10:4000"
     },
     "plugins": [
       [
         "expo-av",
-        { "microphonePermission": "Allow SmartPrep to access your microphone." }
-      ]
+        {
+          "microphonePermission": "Allow SmartPrep to access your microphone."
+        }
+      ],
+      "expo-secure-store"
     ]
   }
 }
