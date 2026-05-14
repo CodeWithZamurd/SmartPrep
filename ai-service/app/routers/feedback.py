@@ -9,6 +9,13 @@ from ..prompts.templates import domain_label, system_feedback
 router = APIRouter()
 
 
+class BodyFrameMetrics(BaseModel):
+    eyeContact: Optional[float] = None
+    facialSentiment: Optional[float] = None
+    fidgeting: Optional[float] = None
+    posture: Optional[float] = None
+
+
 class Turn(BaseModel):
     question: str
     transcript: Optional[str] = ""
@@ -17,6 +24,7 @@ class Turn(BaseModel):
     confidenceScore: Optional[float] = 0
     suggestion: Optional[str] = ""
     eyeContactPct: Optional[float] = None
+    bodyFrameMetrics: Optional[BodyFrameMetrics] = None
 
 
 class FeedbackReq(BaseModel):
@@ -61,9 +69,21 @@ def generate_feedback(req: FeedbackReq):
     overall_clar = avg("clarityScore")
     overall_conf = avg("confidenceScore")
 
+    # Aggregate per-turn body frame metrics produced by /analyze-frame
+    frames = [t.bodyFrameMetrics for t in req.turns if t.bodyFrameMetrics is not None]
+
+    def _frame_avg(key):
+        vals = [getattr(f, key) for f in frames if getattr(f, key) is not None]
+        return round(sum(vals) / len(vals)) if vals else None
+
+    frame_eye = _frame_avg("eyeContact")
+    frame_face = _frame_avg("facialSentiment")
+    frame_fidget = _frame_avg("fidgeting")
+    frame_posture = _frame_avg("posture")
+
     eyes = [t.eyeContactPct for t in req.turns if t.eyeContactPct is not None]
-    has_video = bool(eyes)
-    avg_eye = round(sum(eyes) / len(eyes)) if eyes else 80
+    has_video = bool(frames) or bool(eyes)
+    avg_eye = frame_eye if frame_eye is not None else (round(sum(eyes) / len(eyes)) if eyes else 80)
 
     transcript_block = "\n\n".join(
         f"Q{i+1}: {t.question}\nA{i+1}: {t.transcript}\n"
@@ -118,10 +138,10 @@ def generate_feedback(req: FeedbackReq):
     bm = data.get("bodyMetrics") or {}
     if has_video:
         body_metrics = {
-            "eyeContact": _clamp(bm.get("eyeContact"), default=avg_eye),
-            "facialSentiment": _clamp(bm.get("facialSentiment"), default=80),
-            "fidgeting": _clamp(bm.get("fidgeting"), default=80),
-            "posture": _clamp(bm.get("posture"), default=80),
+            "eyeContact": _clamp(frame_eye if frame_eye is not None else bm.get("eyeContact"), default=avg_eye),
+            "facialSentiment": _clamp(frame_face if frame_face is not None else bm.get("facialSentiment"), default=80),
+            "fidgeting": _clamp(frame_fidget if frame_fidget is not None else bm.get("fidgeting"), default=80),
+            "posture": _clamp(frame_posture if frame_posture is not None else bm.get("posture"), default=80),
         }
     else:
         body_metrics = {"eyeContact": 0, "facialSentiment": 0, "fidgeting": 0, "posture": 0}

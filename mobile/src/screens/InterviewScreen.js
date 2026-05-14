@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Audio } from 'expo-av';
+import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { api } from '../services/api';
 import Button from '../components/Button';
 import Card from '../components/Card';
@@ -27,15 +28,30 @@ export default function InterviewScreen({ navigation, route }) {
   const [recordedUri, setRecordedUri] = useState(null);
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState('idle');
-  const recRef = useRef(null);
+  const [videoUri, setVideoUri] = useState(null);
+  const [isVideoRecording, setIsVideoRecording] = useState(false);
+  const audioRecRef = useRef(null);
+  const camRef = useRef(null);
+  const videoStopRef = useRef(null);
   const isLast = index + 1 >= total;
 
-  useEffect(() => {
-    return () => {
-      if (recRef.current) recRef.current.stopAndUnloadAsync().catch(() => {});
-    };
-  }, []);
+  const webcamEnabled = !!mode?.webcam;
+  const [camPerm, requestCamPerm] = useCameraPermissions();
+  const [micPerm, requestMicPerm] = useMicrophonePermissions();
 
+  useEffect(() => {
+    (async () => {
+      if (webcamEnabled) {
+        if (!camPerm?.granted) await requestCamPerm();
+        if (!micPerm?.granted) await requestMicPerm();
+      }
+    })();
+    return () => {
+      if (audioRecRef.current) audioRecRef.current.stopAndUnloadAsync().catch(() => {});
+    };
+  }, [webcamEnabled]);
+
+  // ---------- audio recording (voice answer) ----------
   async function startRecording() {
     try {
       const perm = await Audio.requestPermissionsAsync();
@@ -44,7 +60,7 @@ export default function InterviewScreen({ navigation, route }) {
       const rec = new Audio.Recording();
       await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
       await rec.startAsync();
-      recRef.current = rec;
+      audioRecRef.current = rec;
       setRecordedUri(null);
       setIsRecording(true);
       setStage('recording');
@@ -54,11 +70,11 @@ export default function InterviewScreen({ navigation, route }) {
   }
 
   async function stopRecording() {
-    if (!recRef.current) return;
+    if (!audioRecRef.current) return;
     try {
-      await recRef.current.stopAndUnloadAsync();
-      const uri = recRef.current.getURI();
-      recRef.current = null;
+      await audioRecRef.current.stopAndUnloadAsync();
+      const uri = audioRecRef.current.getURI();
+      audioRecRef.current = null;
       setRecordedUri(uri);
       setIsRecording(false);
       setStage('idle');
@@ -68,27 +84,85 @@ export default function InterviewScreen({ navigation, route }) {
     }
   }
 
-  async function submit() {
-    let uri = recordedUri;
-    if (!uri && recRef.current) {
+  // ---------- video recording (webcam, optional) ----------
+  async function startVideoRecording() {
+    if (!camRef.current || isVideoRecording) return;
+    try {
+      setIsVideoRecording(true);
+      setVideoUri(null);
+      // recordAsync resolves with { uri } when stopRecording() is called
+      const promise = camRef.current.recordAsync({ maxDuration: 180, mute: true });
+      videoStopRef.current = promise;
+      const result = await promise;
+      if (result?.uri) setVideoUri(result.uri);
+      setIsVideoRecording(false);
+    } catch (e) {
+      setIsVideoRecording(false);
+    }
+  }
+
+  async function stopVideoAndCaptureFrame() {
+    let frameUri = null;
+    if (camRef.current) {
       try {
-        await recRef.current.stopAndUnloadAsync();
-        uri = recRef.current.getURI();
-        recRef.current = null;
+        const photo = await camRef.current.takePictureAsync({
+          quality: 0.5,
+          skipProcessing: true,
+          shutterSound: false
+        });
+        frameUri = photo?.uri || null;
+      } catch (_) {}
+    }
+    if (isVideoRecording && camRef.current) {
+      try {
+        camRef.current.stopRecording();
+      } catch (_) {}
+      // Wait for recordAsync to resolve
+      try {
+        const result = await videoStopRef.current;
+        if (result?.uri) setVideoUri(result.uri);
+      } catch (_) {}
+    }
+    return frameUri;
+  }
+
+  // Auto-start video recording for each turn when webcam is enabled
+  useEffect(() => {
+    if (webcamEnabled && camPerm?.granted && !isVideoRecording && !busy) {
+      startVideoRecording();
+    }
+  }, [index, webcamEnabled, camPerm?.granted]);
+
+  // ---------- submit ----------
+  async function submit() {
+    let audioUri = recordedUri;
+    if (!audioUri && audioRecRef.current) {
+      try {
+        await audioRecRef.current.stopAndUnloadAsync();
+        audioUri = audioRecRef.current.getURI();
+        audioRecRef.current = null;
         setIsRecording(false);
       } catch (_) {}
     }
-    if (!text && !uri) {
+    if (!text && !audioUri) {
       return Alert.alert('No answer', 'Type or record an answer first.');
     }
+
     setBusy(true);
     setStage('uploading');
     try {
-      const payload = new FormData();
+      const form = new FormData();
       const headers = { 'Content-Type': 'multipart/form-data' };
-      if (uri) payload.append('audio', { uri, name: 'answer.m4a', type: 'audio/m4a' });
-      if (text) payload.append('textFallback', text);
-      const { data } = await api.post(`/sessions/${sessionId}/answer`, payload, { headers });
+      if (audioUri) form.append('audio', { uri: audioUri, name: 'answer.m4a', type: 'audio/m4a' });
+      if (text) form.append('textFallback', text);
+
+      if (webcamEnabled && camPerm?.granted) {
+        const frameUri = await stopVideoAndCaptureFrame();
+        if (frameUri) form.append('frame', { uri: frameUri, name: 'frame.jpg', type: 'image/jpeg' });
+        if (videoUri) form.append('video', { uri: videoUri, name: 'answer.mp4', type: 'video/mp4' });
+      }
+
+      const { data } = await api.post(`/sessions/${sessionId}/answer`, form, { headers });
       if (data.done) {
         navigation.replace('Feedback', { sessionId });
       } else {
@@ -96,6 +170,7 @@ export default function InterviewScreen({ navigation, route }) {
         setIndex(data.index);
         setText('');
         setRecordedUri(null);
+        setVideoUri(null);
         setStage('idle');
       }
     } catch (e) {
@@ -114,7 +189,8 @@ export default function InterviewScreen({ navigation, route }) {
         style: 'destructive',
         onPress: async () => {
           try {
-            if (recRef.current) await recRef.current.stopAndUnloadAsync().catch(() => {});
+            if (audioRecRef.current) await audioRecRef.current.stopAndUnloadAsync().catch(() => {});
+            if (isVideoRecording && camRef.current) camRef.current.stopRecording();
             await api.post(`/sessions/${sessionId}/abandon`);
           } catch (_) {}
           navigation.replace('Home');
@@ -140,16 +216,40 @@ export default function InterviewScreen({ navigation, route }) {
           <Text style={styles.q}>{question}</Text>
         </Card>
 
+        {webcamEnabled && (
+          <View style={styles.camWrap}>
+            {camPerm?.granted ? (
+              <CameraView
+                ref={camRef}
+                style={styles.cam}
+                facing="front"
+                mode="video"
+                videoQuality="480p"
+              />
+            ) : (
+              <View style={styles.camFallback}>
+                <Text style={{ color: '#fff' }}>Camera permission required</Text>
+                <Button title="Grant permission" onPress={requestCamPerm} style={{ marginTop: 8 }} />
+              </View>
+            )}
+            {isVideoRecording && (
+              <View style={styles.recBadge}>
+                <Text style={styles.recBadgeTxt}>● REC</Text>
+              </View>
+            )}
+          </View>
+        )}
+
         <View style={styles.botRow}>
           <Text style={{ fontSize: 64 }}>🤖</Text>
-          {isRecording && <Text style={styles.recDot}>🔴 Recording…</Text>}
+          {isRecording && <Text style={styles.recDot}>🔴 Recording voice…</Text>}
         </View>
 
         {mode?.textInput !== false && (
           <View style={styles.answerBox}>
             <TextInput
               style={styles.input}
-              placeholder="Type your answer......"
+              placeholder="Type your answer……"
               placeholderTextColor={colors.textMuted}
               multiline
               value={text}
@@ -206,6 +306,26 @@ const styles = StyleSheet.create({
   metaVal: { color: colors.star, fontWeight: '900' },
   progress: { color: '#fff', marginVertical: 6, fontWeight: '700' },
   q: { color: '#fff', fontSize: 16, lineHeight: 22 },
+  camWrap: {
+    marginTop: spacing.md,
+    borderRadius: radii.md,
+    overflow: 'hidden',
+    height: 180,
+    backgroundColor: '#000',
+    position: 'relative'
+  },
+  cam: { flex: 1 },
+  camFallback: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  recBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: 'rgba(255,92,92,0.85)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 4
+  },
+  recBadgeTxt: { color: '#fff', fontWeight: '900', fontSize: 11 },
   botRow: { alignItems: 'center', marginVertical: spacing.md },
   recDot: { color: colors.danger, marginTop: 4, fontWeight: '700' },
   answerBox: {

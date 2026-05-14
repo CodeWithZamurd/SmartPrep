@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
 
-from .routers import interview, practice, feedback, challenge  # noqa: E402
+from .routers import interview, practice, feedback, challenge, vision  # noqa: E402
 
 app = FastAPI(title="SmartPrep AI Service")
 
@@ -40,3 +40,4 @@ app.include_router(interview.router)
 app.include_router(practice.router)
 app.include_router(feedback.router)
 app.include_router(challenge.router)
+app.include_router(vision.router)

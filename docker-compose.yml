@@ -1,0 +1,67 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: smartprep-mongo
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ai-service:
+    build:
+      context: ./ai-service
+    container_name: smartprep-ai
+    restart: unless-stopped
+    env_file:
+      - ./ai-service/.env
+    ports:
+      - "5000:5000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    container_name: smartprep-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      MONGO_URI: mongodb://mongo:27017/smartprep
+      AI_SERVICE_URL: http://ai-service:5000
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-prod}
+      JWT_EXPIRES_IN: 7d
+      DAILY_SESSION_LIMIT: 3
+    ports:
+      - "4000:4000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      ai-service:
+        condition: service_started
+
+  web:
+    build:
+      context: ./web-frontend
+      args:
+        # Browser-side URL to reach the backend. For local docker-compose use
+        # the host-mapped port. In production, set this to your public API URL.
+        VITE_API_BASE_URL: ${WEB_API_BASE_URL:-http://localhost:4000}
+    container_name: smartprep-web
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  mongo-data:

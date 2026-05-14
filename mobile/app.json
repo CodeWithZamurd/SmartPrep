@@ -24,9 +24,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.smartprep.app",
-      "permissions": [
-        "RECORD_AUDIO"
-      ]
+      "permissions": ["RECORD_AUDIO", "CAMERA"]
     },
     "extra": {
       "apiBaseUrl": "http://192.168.1.10:4000"
@@ -34,11 +32,16 @@
     "plugins": [
       [
         "expo-av",
-        {
-          "microphonePermission": "Allow SmartPrep to access your microphone."
-        }
+        { "microphonePermission": "Allow SmartPrep to access your microphone." }
       ],
-      "expo-secure-store"
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow SmartPrep to access your camera for body language analysis.",
+          "microphonePermission": "Allow SmartPrep to record your voice answers.",
+          "recordAudioAndroid": true
+        }
+      ]
     ]
   }
 }

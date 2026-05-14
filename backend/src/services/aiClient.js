@@ -52,3 +52,15 @@ export async function generateChallenge({ domain }) {
     return data;
   } catch (e) { rethrow('generateChallenge', e); }
 }
+
+export async function analyzeFrame(buffer, filename = 'frame.jpg', contentType = 'image/jpeg') {
+  try {
+    const form = new FormData();
+    form.append('file', buffer, { filename, contentType });
+    const { data } = await ai.post('/analyze-frame', form, {
+      headers: form.getHeaders(),
+      timeout: 30000
+    });
+    return data;
+  } catch (e) { rethrow('analyzeFrame', e); }
+}
