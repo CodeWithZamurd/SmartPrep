@@ -28,6 +28,10 @@ export default function InterviewScreen({ navigation, route }) {
   const [stage, setStage] = useState('idle');
   const [recordingActive, setRecordingActive] = useState(false);
   const [permError, setPermError] = useState('');
+  // URIs of the most recent finished recording (set when user presses Stop)
+  const [recordedAudioUri, setRecordedAudioUri] = useState(null);
+  const [recordedVideoUri, setRecordedVideoUri] = useState(null);
+  const [recordedFrameUri, setRecordedFrameUri] = useState(null);
 
   const audioRecRef = useRef(null);
   const camRef = useRef(null);
@@ -53,21 +57,22 @@ export default function InterviewScreen({ navigation, route }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ---------- auto-start recording per question ----------
+  // Recording is started manually via the Record Answer button.
+  // When the question changes (next), make sure no leftover recording is running.
   useEffect(() => {
-    if (!useMic && !useCam) return;
-    // Wait briefly so the camera ref mounts before we call recordAsync.
-    const t = setTimeout(() => {
-      startRecording();
-    }, 350);
     return () => {
-      clearTimeout(t);
+      stopAudio().catch(() => {});
+      stopVideo().catch(() => {});
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index, useCam, useMic, camPerm?.granted, micPerm?.granted]);
+  }, [index]);
 
   async function startRecording() {
     setPermError('');
+    // Clear any previous recording for this question
+    setRecordedAudioUri(null);
+    setRecordedVideoUri(null);
+    setRecordedFrameUri(null);
     try {
       if (useCam) {
         if (!camPerm?.granted) {
@@ -145,33 +150,54 @@ export default function InterviewScreen({ navigation, route }) {
     }
   }
 
+  async function stopRecording() {
+    try {
+      let frame = null;
+      let video = null;
+      let audio = null;
+      if (useCam) {
+        frame = await captureFrame();
+        video = await stopVideo();
+        audio = video; // expo-camera mp4 contains audio
+      } else if (useMic) {
+        audio = await stopAudio();
+      }
+      setRecordingActive(false);
+      if (audio) setRecordedAudioUri(audio);
+      if (video) setRecordedVideoUri(video);
+      if (frame) setRecordedFrameUri(frame);
+    } catch (_) {
+      setRecordingActive(false);
+    }
+  }
+
   async function submit() {
     setBusy(true);
     setStage('uploading');
     try {
-      let audioUri = null;
-      let videoUri = null;
-      let frameUri = null;
+      let audioUri = recordedAudioUri;
+      let videoUri = recordedVideoUri;
+      let frameUri = recordedFrameUri;
 
-      if (useCam) {
-        frameUri = await captureFrame();
-        videoUri = await stopVideo();
-        // expo-camera video recordings include audio — send as audio source too
-        audioUri = videoUri;
-      } else if (useMic) {
-        audioUri = await stopAudio();
+      // If the user clicked Submit while still recording, stop and capture first.
+      if (recordingActive) {
+        if (useCam) {
+          frameUri = frameUri || (await captureFrame());
+          videoUri = videoUri || (await stopVideo());
+          audioUri = audioUri || videoUri;
+        } else if (useMic) {
+          audioUri = audioUri || (await stopAudio());
+        }
+        setRecordingActive(false);
       }
-      setRecordingActive(false);
 
       if (!text && !audioUri) {
         setBusy(false);
         setStage('idle');
-        // Re-arm the recorder so user can try again
-        startRecording();
         return Alert.alert(
-          'No answer captured',
+          'No answer recorded',
           useMic
-            ? 'I did not catch any audio. Please speak your answer (or type it) and try again.'
+            ? 'Press “Record Answer” first (or type your answer), then submit.'
             : 'Type your answer first.'
         );
       }
@@ -199,8 +225,10 @@ export default function InterviewScreen({ navigation, route }) {
         setQuestion(data.question);
         setIndex(data.index);
         setText('');
+        setRecordedAudioUri(null);
+        setRecordedVideoUri(null);
+        setRecordedFrameUri(null);
         setStage('idle');
-        // Next question's useEffect will auto-start the next recording.
       }
     } catch (e) {
       Alert.alert('Submission failed', e?.response?.data?.error || e.message);
@@ -270,13 +298,52 @@ export default function InterviewScreen({ navigation, route }) {
         )}
 
         {useMic && (
-          <View style={[styles.statusRow, recordingActive ? styles.statusRec : styles.statusIdle]}>
-            <Text style={{ color: recordingActive ? colors.danger : colors.textSecondary, fontWeight: '700' }}>
-              {recordingActive
-                ? `🔴 Listening… speak your answer${useCam ? ' (camera + mic)' : ''}.`
-                : permError || 'Recording paused.'}
-            </Text>
-          </View>
+          <>
+            <View
+              style={[
+                styles.statusRow,
+                recordingActive
+                  ? styles.statusRec
+                  : recordedAudioUri
+                  ? styles.statusDone
+                  : styles.statusIdle
+              ]}
+            >
+              <Text
+                style={{
+                  color: recordingActive
+                    ? colors.danger
+                    : recordedAudioUri
+                    ? colors.green
+                    : colors.textSecondary,
+                  fontWeight: '700'
+                }}
+              >
+                {recordingActive
+                  ? `🔴 Recording… speak your answer${useCam ? ' (camera + mic)' : ''}.`
+                  : recordedAudioUri
+                  ? '✓ Answer recorded. Submit to send, or re-record.'
+                  : permError || 'Read the question, then press Record Answer when ready.'}
+              </Text>
+            </View>
+
+            {recordingActive ? (
+              <Button
+                title="⏹ Stop Recording"
+                variant="danger"
+                onPress={stopRecording}
+                style={{ marginTop: spacing.sm }}
+              />
+            ) : (
+              <Button
+                title={recordedAudioUri ? '🔁 Re-record Answer' : '🎤 Record Answer'}
+                variant={recordedAudioUri ? 'outline' : 'primary'}
+                onPress={startRecording}
+                style={{ marginTop: spacing.sm }}
+                disabled={busy}
+              />
+            )}
+          </>
         )}
 
         {mode?.textInput !== false && (
@@ -353,6 +420,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.md
   },
   statusRec: { backgroundColor: 'rgba(255,92,92,0.15)' },
+  statusDone: { backgroundColor: 'rgba(74,222,128,0.15)' },
   statusIdle: { backgroundColor: colors.cardAlt },
   answerBox: {
     backgroundColor: colors.card,
