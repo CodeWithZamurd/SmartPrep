@@ -33,7 +33,7 @@ export default function InterviewSetup() {
   const { state } = useLocation();
   const domain = state?.domain;
   const [textInput, setText] = useState(true);
-  const [voiceInput, setVoice] = useState(false);
+  const [voiceInput, setVoice] = useState(true);
   const [webcam, setWebcam] = useState(false);
   const [difficulty, setDifficulty] = useState('medium');
   const [count, setCount] = useState(15);
@@ -45,6 +45,9 @@ export default function InterviewSetup() {
   }
 
   async function start() {
+    if (!textInput && !voiceInput && !webcam) {
+      return alert('Enable at least one input method (text, voice, or webcam) to start.');
+    }
     setLoading(true);
     try {
       const { data } = await api.post('/sessions', {
