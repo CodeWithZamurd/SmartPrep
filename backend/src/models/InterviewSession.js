@@ -12,6 +12,15 @@ const turnSchema = new mongoose.Schema(
     confidenceScore: Number,
     suggestion: String,
     eyeContactPct: Number,
+    videoUrl: { type: String, default: '' },
+    frameUrl: { type: String, default: '' },
+    bodyFrameMetrics: {
+      eyeContact: { type: Number, default: null },
+      facialSentiment: { type: Number, default: null },
+      fidgeting: { type: Number, default: null },
+      posture: { type: Number, default: null },
+      reason: { type: String, default: '' }
+    },
     correct: { type: Boolean, default: null }
   },
   { _id: false }

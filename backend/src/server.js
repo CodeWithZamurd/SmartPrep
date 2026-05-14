@@ -3,6 +3,9 @@ import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 import mongoose from 'mongoose';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 
 import authRoutes from './routes/auth.js';
 import profileRoutes from './routes/profile.js';
@@ -24,6 +27,12 @@ app.use(express.json({ limit: '2mb' }));
 app.use(morgan('dev'));
 
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'smartprep-backend' }));
+
+// Serve uploaded videos/frames
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const UPLOAD_DIR = path.resolve(__dirname, '..', 'uploads');
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+app.use('/uploads', express.static(UPLOAD_DIR));
 
 app.use('/auth', authRoutes);
 app.use('/profile', profileRoutes);

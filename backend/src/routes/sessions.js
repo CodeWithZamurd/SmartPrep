@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import multer from 'multer';
 import mongoose from 'mongoose';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import { requireAuth } from '../middleware/auth.js';
 import InterviewSession from '../models/InterviewSession.js';
 import QuestionAttempt from '../models/QuestionAttempt.js';
@@ -10,7 +13,18 @@ import Domain from '../models/Domain.js';
 import * as ai from '../services/aiClient.js';
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const UPLOAD_DIR = path.resolve(__dirname, '..', '..', 'uploads');
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
+function saveBuffer(prefix, ext, buf) {
+  const name = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
+  const full = path.join(UPLOAD_DIR, name);
+  fs.writeFileSync(full, buf);
+  return `/uploads/${name}`;
+}
 
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
@@ -74,7 +88,13 @@ router.post('/', requireAuth, async (req, res, next) => {
   }
 });
 
-router.post('/:id/answer', requireAuth, upload.single('audio'), async (req, res, next) => {
+const answerUpload = upload.fields([
+  { name: 'audio', maxCount: 1 },
+  { name: 'video', maxCount: 1 },
+  { name: 'frame', maxCount: 1 }
+]);
+
+router.post('/:id/answer', requireAuth, answerUpload, async (req, res, next) => {
   try {
     const session = await InterviewSession.findOne({ _id: req.params.id, user: req.user._id });
     if (!session) return res.status(404).json({ error: 'Session not found' });
@@ -83,12 +103,46 @@ router.post('/:id/answer', requireAuth, upload.single('audio'), async (req, res,
     const turn = session.turns[session.turns.length - 1];
     if (!turn || turn.transcript) return res.status(400).json({ error: 'No pending question' });
 
+    const audioFile = req.files?.audio?.[0];
+    const videoFile = req.files?.video?.[0];
+    const frameFile = req.files?.frame?.[0];
+
     let transcript = (req.body && req.body.textFallback) || '';
-    if (req.file) {
-      const tx = await ai.transcribeAudio(req.file.buffer, req.file.originalname || 'answer.m4a');
+    if (audioFile) {
+      const tx = await ai.transcribeAudio(audioFile.buffer, audioFile.originalname || 'answer.webm');
       transcript = tx.text || '';
     }
     if (!transcript) return res.status(400).json({ error: 'No transcript or audio' });
+
+    // Persist video for replay/evidence (optional — skipped if not provided)
+    if (videoFile) {
+      const ext = (videoFile.mimetype && videoFile.mimetype.includes('mp4')) ? '.mp4' : '.webm';
+      turn.videoUrl = saveBuffer('video', ext, videoFile.buffer);
+    }
+
+    // Analyze a snapshot frame using the AI service's Vision endpoint
+    if (frameFile) {
+      try {
+        const ext = (frameFile.mimetype && frameFile.mimetype.includes('png')) ? '.png' : '.jpg';
+        turn.frameUrl = saveBuffer('frame', ext, frameFile.buffer);
+        const metrics = await ai.analyzeFrame(
+          frameFile.buffer,
+          frameFile.originalname || `frame${ext}`,
+          frameFile.mimetype || 'image/jpeg'
+        );
+        turn.bodyFrameMetrics = {
+          eyeContact: metrics.eyeContact ?? null,
+          facialSentiment: metrics.facialSentiment ?? null,
+          fidgeting: metrics.fidgeting ?? null,
+          posture: metrics.posture ?? null,
+          reason: metrics.reason || ''
+        };
+        if (metrics.eyeContact != null) turn.eyeContactPct = metrics.eyeContact;
+      } catch (frameErr) {
+        // Don't fail the whole turn if frame analysis fails
+        console.error('frame analysis failed:', frameErr.message);
+      }
+    }
 
     const eyeContactPct =
       req.body && req.body.eyeContactPct ? Number(req.body.eyeContactPct) : undefined;
