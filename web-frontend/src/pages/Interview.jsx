@@ -12,21 +12,21 @@ export default function Interview() {
   const [index, setIndex] = useState(init.index ?? 0);
   const [total] = useState(init.total ?? 15);
   const [domain] = useState(init.domain);
-  const [mode] = useState(init.mode || { textInput: true, voiceInput: false, webcam: false });
+  const [mode] = useState(init.mode || { textInput: true, voiceInput: true, webcam: false });
   const [text, setText] = useState('');
-  const [audioRecording, setAudioRecording] = useState(false);
-  const [audioBlob, setAudioBlob] = useState(null);
-  const [videoBlob, setVideoBlob] = useState(null);
-  const [videoStreamReady, setVideoStreamReady] = useState(false);
-  const [videoError, setVideoError] = useState('');
+  const [recording, setRecording] = useState(false);
+  const [permError, setPermError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [streamReady, setStreamReady] = useState(false);
 
-  const audioRecRef = useRef(null);
-  const audioChunksRef = useRef([]);
-  const videoRecRef = useRef(null);
-  const videoChunksRef = useRef([]);
+  const useMic = mode.voiceInput !== false || mode.webcam === true;
+  const useCam = mode.webcam === true;
+
+  const streamRef = useRef(null);          // combined audio+video stream
+  const recorderRef = useRef(null);        // MediaRecorder
+  const chunksRef = useRef([]);            // recorded chunks
+  const lastBlobRef = useRef(null);        // last recording blob (set on stop)
   const videoEl = useRef(null);
-  const videoStreamRef = useRef(null);
 
   const isLast = index + 1 >= total;
   const progress = ((index + 1) / total) * 100;
@@ -36,139 +36,138 @@ export default function Interview() {
     return null;
   }
 
-  // ----- Webcam stream setup (only when webcam enabled) -----
+  // ---------- Acquire the media stream once on mount ----------
   useEffect(() => {
-    if (!mode.webcam) return;
-
+    if (!useMic && !useCam) return; // text-only — nothing to do
     let cancelled = false;
     (async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: 640, height: 480 },
-          audio: false
-        });
+        const constraints = {
+          video: useCam ? { facingMode: 'user', width: 640, height: 480 } : false,
+          audio: useMic ? true : false
+        };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop());
           return;
         }
-        videoStreamRef.current = stream;
-        if (videoEl.current) {
+        streamRef.current = stream;
+        if (useCam && videoEl.current) {
           videoEl.current.srcObject = stream;
+          videoEl.current.muted = true; // prevent feedback loop
           videoEl.current.play().catch(() => {});
         }
-        setVideoStreamReady(true);
+        setStreamReady(true);
       } catch (e) {
-        setVideoError(e.message || 'Camera permission denied');
+        setPermError(e.message || 'Camera/microphone permission denied');
       }
     })();
 
     return () => {
       cancelled = true;
-      if (videoRecRef.current && videoRecRef.current.state !== 'inactive') {
-        try { videoRecRef.current.stop(); } catch (_) {}
-      }
-      if (videoStreamRef.current) {
-        videoStreamRef.current.getTracks().forEach((t) => t.stop());
-        videoStreamRef.current = null;
-      }
-    };
-  }, [mode.webcam]);
-
-  // Auto-start a fresh video recording for each turn
-  useEffect(() => {
-    if (!mode.webcam || !videoStreamReady) return;
-    startVideoRecording();
-    return () => {
-      if (videoRecRef.current && videoRecRef.current.state === 'recording') {
-        try { videoRecRef.current.stop(); } catch (_) {}
+      stopRecorder();
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index, videoStreamReady, mode.webcam]);
+  }, []);
 
-  function startVideoRecording() {
-    if (!videoStreamRef.current) return;
+  // ---------- Auto-start a fresh recorder per question ----------
+  useEffect(() => {
+    if (!streamReady) return;
+    startRecorder();
+    return stopRecorder;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index, streamReady]);
+
+  function pickMimeType() {
+    const candidates = useCam
+      ? ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4']
+      : ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg', 'audio/mp4'];
+    for (const m of candidates) {
+      if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported?.(m)) return m;
+    }
+    return undefined;
+  }
+
+  function startRecorder() {
+    if (!streamRef.current) return;
+    if (recorderRef.current && recorderRef.current.state === 'recording') return;
     try {
-      videoChunksRef.current = [];
-      const rec = new MediaRecorder(videoStreamRef.current, { mimeType: 'video/webm' });
-      rec.ondataavailable = (e) => e.data.size > 0 && videoChunksRef.current.push(e.data);
+      chunksRef.current = [];
+      lastBlobRef.current = null;
+      const mimeType = pickMimeType();
+      const rec = mimeType
+        ? new MediaRecorder(streamRef.current, { mimeType })
+        : new MediaRecorder(streamRef.current);
+      rec.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data);
       rec.onstop = () => {
-        const blob = new Blob(videoChunksRef.current, { type: 'video/webm' });
-        setVideoBlob(blob);
+        const blob = new Blob(chunksRef.current, { type: rec.mimeType || (useCam ? 'video/webm' : 'audio/webm') });
+        lastBlobRef.current = blob;
       };
-      rec.start();
-      videoRecRef.current = rec;
+      rec.start(1000); // gather data every second
+      recorderRef.current = rec;
+      setRecording(true);
     } catch (e) {
-      // Some browsers may not support video/webm — fallback silently
+      setPermError('Could not start recording: ' + e.message);
     }
   }
 
-  async function stopVideoAndGrabFrame() {
-    let frameBlob = null;
-    if (videoEl.current && videoEl.current.readyState >= 2) {
-      const v = videoEl.current;
-      const canvas = document.createElement('canvas');
-      canvas.width = v.videoWidth || 640;
-      canvas.height = v.videoHeight || 480;
-      canvas.getContext('2d').drawImage(v, 0, 0, canvas.width, canvas.height);
-      frameBlob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.85));
-    }
-    if (videoRecRef.current && videoRecRef.current.state === 'recording') {
-      await new Promise((resolve) => {
-        const rec = videoRecRef.current;
-        const prev = rec.onstop;
-        rec.onstop = (e) => {
-          prev?.(e);
-          resolve();
-        };
-        try { rec.stop(); } catch (_) { resolve(); }
-      });
-    }
-    return frameBlob;
-  }
-
-  // ----- Audio recording (voice answer) -----
-  async function startAudioRecording() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream);
-      audioChunksRef.current = [];
-      rec.ondataavailable = (e) => e.data.size > 0 && audioChunksRef.current.push(e.data);
-      rec.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        setAudioBlob(blob);
-        stream.getTracks().forEach((t) => t.stop());
+  function stopRecorder() {
+    const rec = recorderRef.current;
+    if (!rec) return Promise.resolve(null);
+    if (rec.state === 'inactive') return Promise.resolve(lastBlobRef.current);
+    return new Promise((resolve) => {
+      const prev = rec.onstop;
+      rec.onstop = (e) => {
+        prev?.(e);
+        setRecording(false);
+        resolve(lastBlobRef.current);
       };
-      rec.start();
-      audioRecRef.current = rec;
-      setAudioRecording(true);
-    } catch (e) {
-      alert('Mic permission denied');
-    }
+      try { rec.stop(); } catch (_) { setRecording(false); resolve(null); }
+    });
   }
 
-  function stopAudioRecording() {
-    audioRecRef.current?.stop();
-    setAudioRecording(false);
+  function grabFrame() {
+    if (!useCam || !videoEl.current) return null;
+    const v = videoEl.current;
+    if (v.readyState < 2) return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = v.videoWidth || 640;
+    canvas.height = v.videoHeight || 480;
+    canvas.getContext('2d').drawImage(v, 0, 0, canvas.width, canvas.height);
+    return new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.85));
   }
 
-  // ----- Submit -----
   async function submit() {
-    if (!text && !audioBlob) return alert('Type or record an answer first.');
     setBusy(true);
     try {
-      let frameBlob = null;
-      let finalVideoBlob = null;
-      if (mode.webcam && videoStreamReady) {
-        frameBlob = await stopVideoAndGrabFrame();
-        finalVideoBlob = videoBlob; // set by onstop
+      // Stop recorder first so blob is finalized
+      const blob = await stopRecorder();
+      const frame = useCam ? await grabFrame() : null;
+
+      const hasAudio = !!blob && useMic;
+      if (!text && !hasAudio) {
+        setBusy(false);
+        startRecorder(); // resume so user can try again
+        alert(useMic
+          ? "I didn't catch anything — please speak your answer (or type it) and try again."
+          : 'Type your answer first.');
+        return;
       }
 
       const form = new FormData();
-      if (audioBlob) form.append('audio', audioBlob, 'answer.webm');
       if (text) form.append('textFallback', text);
-      if (frameBlob) form.append('frame', frameBlob, 'frame.jpg');
-      if (finalVideoBlob) form.append('video', finalVideoBlob, 'answer.webm');
+      if (blob) {
+        const isVideo = blob.type.startsWith('video/');
+        const ext = isVideo ? 'webm' : (blob.type.includes('mp4') ? 'm4a' : 'webm');
+        // Whisper transcribes the audio track from either audio or video blobs.
+        form.append('audio', blob, `answer.${ext}`);
+        if (isVideo) form.append('video', blob, `answer.${ext}`);
+      }
+      if (frame) form.append('frame', frame, 'frame.jpg');
 
       const { data } = await api.post(`/sessions/${sessionId}/answer`, form);
       if (data.done) {
@@ -177,8 +176,6 @@ export default function Interview() {
         setQuestion(data.question);
         setIndex(data.index);
         setText('');
-        setAudioBlob(null);
-        setVideoBlob(null);
       }
     } catch (e) {
       alert(e?.response?.data?.error || e.message);
@@ -190,8 +187,8 @@ export default function Interview() {
   async function endSession() {
     if (!confirm('End interview? Your progress so far will be saved.')) return;
     try {
-      if (videoRecRef.current && videoRecRef.current.state === 'recording') videoRecRef.current.stop();
-      if (videoStreamRef.current) videoStreamRef.current.getTracks().forEach((t) => t.stop());
+      await stopRecorder();
+      if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop());
       await api.post(`/sessions/${sessionId}/abandon`);
     } catch (_) {}
     nav('/home');
@@ -217,35 +214,49 @@ export default function Interview() {
       <div className="grid-2 mt-lg" style={{ gridTemplateColumns: '1fr 1fr', alignItems: 'flex-start' }}>
         <div className="card">
           <h3>📝 Your answer</h3>
-          {mode.textInput !== false && (
-            <textarea
-              className="textarea mt-sm"
-              placeholder="Type your answer here…"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-            />
+
+          {useMic && (
+            <div
+              className="mt-sm"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: recording ? 'rgba(255,92,92,0.15)' : 'var(--card-alt)',
+                padding: '10px 12px',
+                borderRadius: 8,
+                color: recording ? 'var(--danger)' : 'var(--text-secondary)',
+                fontSize: 13,
+                fontWeight: 600
+              }}
+            >
+              <span style={{ fontSize: 14 }}>{recording ? '🔴' : '⏸'}</span>
+              <span>
+                {recording
+                  ? `Listening… speak your answer${useCam ? ' (camera + mic)' : ''}.`
+                  : streamReady
+                  ? 'Recording paused.'
+                  : permError || 'Requesting camera/mic permission…'}
+              </span>
+            </div>
           )}
 
-          {mode.voiceInput !== false && (
-            <div className="mt-md">
-              <h4 className="muted" style={{ fontSize: 13 }}>OR RECORD VOICE</h4>
-              {audioRecording ? (
-                <button className="btn block danger mt-sm" onClick={stopAudioRecording}>
-                  ⏹ Stop recording
-                </button>
-              ) : audioBlob ? (
-                <>
-                  <button className="btn block outline mt-sm" onClick={startAudioRecording}>
-                    🎤 Re-record
-                  </button>
-                  <p style={{ color: 'var(--green)', fontSize: 13, marginTop: 8 }}>✓ Voice recorded</p>
-                </>
-              ) : (
-                <button className="btn block outline mt-sm" onClick={startAudioRecording}>
-                  🎤 Record voice
-                </button>
-              )}
-            </div>
+          {mode.textInput !== false && (
+            <>
+              <p className="muted mt-md" style={{ fontSize: 12 }}>
+                {useMic ? 'Optional notes (the mic is your main answer):' : 'Type your answer:'}
+              </p>
+              <textarea
+                className="textarea"
+                placeholder={useMic ? 'Optional notes…' : 'Type your answer here…'}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+              />
+            </>
+          )}
+
+          {permError && (
+            <p style={{ color: 'var(--danger)', fontSize: 12, marginTop: 8 }}>{permError}</p>
           )}
 
           <button className="btn block lg mt-md" onClick={submit} disabled={busy}>
@@ -254,7 +265,7 @@ export default function Interview() {
         </div>
 
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          {mode.webcam ? (
+          {useCam ? (
             <div style={{ position: 'relative', background: '#000', aspectRatio: '4 / 3' }}>
               <video
                 ref={videoEl}
@@ -263,31 +274,19 @@ export default function Interview() {
                 muted
                 style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
               />
-              {videoError ? (
+              {permError ? (
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, textAlign: 'center' }}>
-                  <p style={{ color: '#fff' }}>{videoError}</p>
+                  <p style={{ color: '#fff' }}>{permError}</p>
                 </div>
-              ) : !videoStreamReady ? (
+              ) : !streamReady ? (
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <p className="muted">Starting camera…</p>
                 </div>
-              ) : (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 8,
-                    left: 8,
-                    background: 'rgba(255,92,92,0.85)',
-                    color: '#fff',
-                    fontSize: 11,
-                    fontWeight: 900,
-                    padding: '4px 10px',
-                    borderRadius: 4
-                  }}
-                >
+              ) : recording ? (
+                <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(255,92,92,0.85)', color: '#fff', fontSize: 11, fontWeight: 900, padding: '4px 10px', borderRadius: 4 }}>
                   ● REC
                 </div>
-              )}
+              ) : null}
             </div>
           ) : (
             <div className="center" style={{ padding: 40 }}>
@@ -296,17 +295,12 @@ export default function Interview() {
               <p className="subtitle mt-sm">
                 Take your time — answer technically and clearly. The follow-ups adapt to your answer.
               </p>
-              {audioRecording && (
-                <p className="mt-md" style={{ color: 'var(--danger)', fontWeight: 700 }}>
-                  🔴 Recording in progress…
-                </p>
-              )}
             </div>
           )}
-          {mode.webcam && (
+          {useCam && (
             <div style={{ padding: 14 }}>
               <p className="muted" style={{ fontSize: 12 }}>
-                Body language is sampled from a frame at the moment you submit your answer.
+                Body language is sampled from a frame at the moment you submit.
               </p>
             </div>
           )}

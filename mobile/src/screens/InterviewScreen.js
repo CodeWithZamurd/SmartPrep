@@ -24,142 +24,172 @@ export default function InterviewScreen({ navigation, route }) {
   const [question, setQuestion] = useState(initialQ);
   const [index, setIndex] = useState(initialIdx);
   const [text, setText] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordedUri, setRecordedUri] = useState(null);
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState('idle');
-  const [videoUri, setVideoUri] = useState(null);
-  const [isVideoRecording, setIsVideoRecording] = useState(false);
+  const [recordingActive, setRecordingActive] = useState(false);
+  const [permError, setPermError] = useState('');
+
   const audioRecRef = useRef(null);
   const camRef = useRef(null);
-  const videoStopRef = useRef(null);
+  const videoPromiseRef = useRef(null);
   const isLast = index + 1 >= total;
 
-  const webcamEnabled = !!mode?.webcam;
+  const useCam = mode?.webcam === true;
+  const useMic = mode?.voiceInput !== false || useCam;
+
   const [camPerm, requestCamPerm] = useCameraPermissions();
   const [micPerm, requestMicPerm] = useMicrophonePermissions();
 
+  // ---------- permissions on mount ----------
   useEffect(() => {
     (async () => {
-      if (webcamEnabled) {
-        if (!camPerm?.granted) await requestCamPerm();
-        if (!micPerm?.granted) await requestMicPerm();
-      }
+      if (useCam && !camPerm?.granted) await requestCamPerm();
+      if (useMic && !micPerm?.granted) await requestMicPerm();
     })();
     return () => {
-      if (audioRecRef.current) audioRecRef.current.stopAndUnloadAsync().catch(() => {});
+      stopAudio().catch(() => {});
+      stopVideo().catch(() => {});
     };
-  }, [webcamEnabled]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // ---------- audio recording (voice answer) ----------
+  // ---------- auto-start recording per question ----------
+  useEffect(() => {
+    if (!useMic && !useCam) return;
+    // Wait briefly so the camera ref mounts before we call recordAsync.
+    const t = setTimeout(() => {
+      startRecording();
+    }, 350);
+    return () => {
+      clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index, useCam, useMic, camPerm?.granted, micPerm?.granted]);
+
   async function startRecording() {
+    setPermError('');
     try {
-      const perm = await Audio.requestPermissionsAsync();
-      if (!perm.granted) return Alert.alert('Microphone permission required');
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const rec = new Audio.Recording();
-      await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      await rec.startAsync();
-      audioRecRef.current = rec;
-      setRecordedUri(null);
-      setIsRecording(true);
-      setStage('recording');
+      if (useCam) {
+        if (!camPerm?.granted) {
+          const p = await requestCamPerm();
+          if (!p?.granted) {
+            setPermError('Camera permission denied');
+            return;
+          }
+        }
+        // expo-camera handles both video AND audio when recordAsync is called
+        // with the mic permission granted and `mute` not set.
+        await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+        if (!camRef.current) return; // ref not mounted yet
+        videoPromiseRef.current = camRef.current.recordAsync({
+          maxDuration: 180,
+          quality: '480p'
+        });
+        setRecordingActive(true);
+      } else if (useMic) {
+        const perm = await Audio.requestPermissionsAsync();
+        if (!perm.granted) {
+          setPermError('Microphone permission denied');
+          return;
+        }
+        await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+        const rec = new Audio.Recording();
+        await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+        await rec.startAsync();
+        audioRecRef.current = rec;
+        setRecordingActive(true);
+      }
     } catch (e) {
-      Alert.alert('Recording error', e.message);
+      setPermError(e.message || 'Could not start recording');
+      setRecordingActive(false);
     }
   }
 
-  async function stopRecording() {
-    if (!audioRecRef.current) return;
+  async function stopAudio() {
+    if (!audioRecRef.current) return null;
     try {
       await audioRecRef.current.stopAndUnloadAsync();
       const uri = audioRecRef.current.getURI();
       audioRecRef.current = null;
-      setRecordedUri(uri);
-      setIsRecording(false);
-      setStage('idle');
+      return uri;
     } catch (e) {
-      setIsRecording(false);
-      setStage('idle');
+      audioRecRef.current = null;
+      return null;
     }
   }
 
-  // ---------- video recording (webcam, optional) ----------
-  async function startVideoRecording() {
-    if (!camRef.current || isVideoRecording) return;
+  async function stopVideo() {
+    if (!videoPromiseRef.current) return null;
     try {
-      setIsVideoRecording(true);
-      setVideoUri(null);
-      // recordAsync resolves with { uri } when stopRecording() is called
-      const promise = camRef.current.recordAsync({ maxDuration: 180, mute: true });
-      videoStopRef.current = promise;
-      const result = await promise;
-      if (result?.uri) setVideoUri(result.uri);
-      setIsVideoRecording(false);
+      if (camRef.current) camRef.current.stopRecording();
+      const result = await videoPromiseRef.current;
+      videoPromiseRef.current = null;
+      return result?.uri || null;
     } catch (e) {
-      setIsVideoRecording(false);
+      videoPromiseRef.current = null;
+      return null;
     }
   }
 
-  async function stopVideoAndCaptureFrame() {
-    let frameUri = null;
-    if (camRef.current) {
-      try {
-        const photo = await camRef.current.takePictureAsync({
-          quality: 0.5,
-          skipProcessing: true,
-          shutterSound: false
-        });
-        frameUri = photo?.uri || null;
-      } catch (_) {}
+  async function captureFrame() {
+    if (!useCam || !camRef.current) return null;
+    try {
+      const photo = await camRef.current.takePictureAsync({
+        quality: 0.5,
+        skipProcessing: true,
+        shutterSound: false
+      });
+      return photo?.uri || null;
+    } catch (_) {
+      return null;
     }
-    if (isVideoRecording && camRef.current) {
-      try {
-        camRef.current.stopRecording();
-      } catch (_) {}
-      // Wait for recordAsync to resolve
-      try {
-        const result = await videoStopRef.current;
-        if (result?.uri) setVideoUri(result.uri);
-      } catch (_) {}
-    }
-    return frameUri;
   }
 
-  // Auto-start video recording for each turn when webcam is enabled
-  useEffect(() => {
-    if (webcamEnabled && camPerm?.granted && !isVideoRecording && !busy) {
-      startVideoRecording();
-    }
-  }, [index, webcamEnabled, camPerm?.granted]);
-
-  // ---------- submit ----------
   async function submit() {
-    let audioUri = recordedUri;
-    if (!audioUri && audioRecRef.current) {
-      try {
-        await audioRecRef.current.stopAndUnloadAsync();
-        audioUri = audioRecRef.current.getURI();
-        audioRecRef.current = null;
-        setIsRecording(false);
-      } catch (_) {}
-    }
-    if (!text && !audioUri) {
-      return Alert.alert('No answer', 'Type or record an answer first.');
-    }
-
     setBusy(true);
     setStage('uploading');
     try {
+      let audioUri = null;
+      let videoUri = null;
+      let frameUri = null;
+
+      if (useCam) {
+        frameUri = await captureFrame();
+        videoUri = await stopVideo();
+        // expo-camera video recordings include audio — send as audio source too
+        audioUri = videoUri;
+      } else if (useMic) {
+        audioUri = await stopAudio();
+      }
+      setRecordingActive(false);
+
+      if (!text && !audioUri) {
+        setBusy(false);
+        setStage('idle');
+        // Re-arm the recorder so user can try again
+        startRecording();
+        return Alert.alert(
+          'No answer captured',
+          useMic
+            ? 'I did not catch any audio. Please speak your answer (or type it) and try again.'
+            : 'Type your answer first.'
+        );
+      }
+
       const form = new FormData();
       const headers = { 'Content-Type': 'multipart/form-data' };
-      if (audioUri) form.append('audio', { uri: audioUri, name: 'answer.m4a', type: 'audio/m4a' });
       if (text) form.append('textFallback', text);
-
-      if (webcamEnabled && camPerm?.granted) {
-        const frameUri = await stopVideoAndCaptureFrame();
-        if (frameUri) form.append('frame', { uri: frameUri, name: 'frame.jpg', type: 'image/jpeg' });
-        if (videoUri) form.append('video', { uri: videoUri, name: 'answer.mp4', type: 'video/mp4' });
+      if (audioUri) {
+        const isMp4 = audioUri.endsWith('.mp4') || useCam;
+        const name = isMp4 ? 'answer.mp4' : 'answer.m4a';
+        const type = isMp4 ? 'video/mp4' : 'audio/m4a';
+        form.append('audio', { uri: audioUri, name, type });
+      }
+      if (videoUri) {
+        form.append('video', { uri: videoUri, name: 'answer.mp4', type: 'video/mp4' });
+      }
+      if (frameUri) {
+        form.append('frame', { uri: frameUri, name: 'frame.jpg', type: 'image/jpeg' });
       }
 
       const { data } = await api.post(`/sessions/${sessionId}/answer`, form, { headers });
@@ -169,9 +199,8 @@ export default function InterviewScreen({ navigation, route }) {
         setQuestion(data.question);
         setIndex(data.index);
         setText('');
-        setRecordedUri(null);
-        setVideoUri(null);
         setStage('idle');
+        // Next question's useEffect will auto-start the next recording.
       }
     } catch (e) {
       Alert.alert('Submission failed', e?.response?.data?.error || e.message);
@@ -189,8 +218,8 @@ export default function InterviewScreen({ navigation, route }) {
         style: 'destructive',
         onPress: async () => {
           try {
-            if (audioRecRef.current) await audioRecRef.current.stopAndUnloadAsync().catch(() => {});
-            if (isVideoRecording && camRef.current) camRef.current.stopRecording();
+            await stopAudio();
+            await stopVideo();
             await api.post(`/sessions/${sessionId}/abandon`);
           } catch (_) {}
           navigation.replace('Home');
@@ -216,7 +245,7 @@ export default function InterviewScreen({ navigation, route }) {
           <Text style={styles.q}>{question}</Text>
         </Card>
 
-        {webcamEnabled && (
+        {useCam && (
           <View style={styles.camWrap}>
             {camPerm?.granted ? (
               <CameraView
@@ -228,11 +257,11 @@ export default function InterviewScreen({ navigation, route }) {
               />
             ) : (
               <View style={styles.camFallback}>
-                <Text style={{ color: '#fff' }}>Camera permission required</Text>
+                <Text style={{ color: '#fff' }}>{permError || 'Camera permission required'}</Text>
                 <Button title="Grant permission" onPress={requestCamPerm} style={{ marginTop: 8 }} />
               </View>
             )}
-            {isVideoRecording && (
+            {recordingActive && (
               <View style={styles.recBadge}>
                 <Text style={styles.recBadgeTxt}>● REC</Text>
               </View>
@@ -240,16 +269,21 @@ export default function InterviewScreen({ navigation, route }) {
           </View>
         )}
 
-        <View style={styles.botRow}>
-          <Text style={{ fontSize: 64 }}>🤖</Text>
-          {isRecording && <Text style={styles.recDot}>🔴 Recording voice…</Text>}
-        </View>
+        {useMic && (
+          <View style={[styles.statusRow, recordingActive ? styles.statusRec : styles.statusIdle]}>
+            <Text style={{ color: recordingActive ? colors.danger : colors.textSecondary, fontWeight: '700' }}>
+              {recordingActive
+                ? `🔴 Listening… speak your answer${useCam ? ' (camera + mic)' : ''}.`
+                : permError || 'Recording paused.'}
+            </Text>
+          </View>
+        )}
 
         {mode?.textInput !== false && (
           <View style={styles.answerBox}>
             <TextInput
               style={styles.input}
-              placeholder="Type your answer……"
+              placeholder={useMic ? 'Optional notes (the mic is your main answer)…' : 'Type your answer…'}
               placeholderTextColor={colors.textMuted}
               multiline
               value={text}
@@ -258,22 +292,9 @@ export default function InterviewScreen({ navigation, route }) {
           </View>
         )}
 
-        {mode?.voiceInput !== false && (
-          <View style={{ marginVertical: spacing.sm }}>
-            {isRecording ? (
-              <Button title="⏹ Stop Recording" onPress={stopRecording} variant="danger" />
-            ) : recordedUri ? (
-              <Button title="🎤 Re-record" onPress={startRecording} variant="outline" />
-            ) : (
-              <Button title="🎤 Record Voice" onPress={startRecording} variant="outline" />
-            )}
-            {recordedUri ? (
-              <Text style={{ color: colors.green, marginTop: 6, fontSize: 12 }}>
-                ✓ Voice recorded
-              </Text>
-            ) : null}
-          </View>
-        )}
+        {permError ? (
+          <Text style={{ color: colors.danger, fontSize: 12, marginTop: 6 }}>{permError}</Text>
+        ) : null}
 
         {stage === 'uploading' ? (
           <View style={{ alignItems: 'center', marginVertical: spacing.md }}>
@@ -282,7 +303,7 @@ export default function InterviewScreen({ navigation, route }) {
           </View>
         ) : (
           <Button
-            title={isLast ? 'End Interview' : 'Next Question'}
+            title={isLast ? 'End Interview' : 'Submit & Next'}
             onPress={submit}
             loading={busy}
             style={{ marginTop: spacing.md }}
@@ -310,12 +331,12 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     borderRadius: radii.md,
     overflow: 'hidden',
-    height: 180,
+    height: 200,
     backgroundColor: '#000',
     position: 'relative'
   },
   cam: { flex: 1 },
-  camFallback: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  camFallback: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
   recBadge: {
     position: 'absolute',
     top: 8,
@@ -326,13 +347,19 @@ const styles = StyleSheet.create({
     borderRadius: 4
   },
   recBadgeTxt: { color: '#fff', fontWeight: '900', fontSize: 11 },
-  botRow: { alignItems: 'center', marginVertical: spacing.md },
-  recDot: { color: colors.danger, marginTop: 4, fontWeight: '700' },
+  statusRow: {
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderRadius: radii.md
+  },
+  statusRec: { backgroundColor: 'rgba(255,92,92,0.15)' },
+  statusIdle: { backgroundColor: colors.cardAlt },
   answerBox: {
     backgroundColor: colors.card,
     borderRadius: radii.md,
     padding: 8,
-    minHeight: 100
+    minHeight: 100,
+    marginTop: spacing.md
   },
   input: { color: '#fff', minHeight: 90, textAlignVertical: 'top' }
 });
