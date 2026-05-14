@@ -74,13 +74,18 @@ export default function Interview() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ---------- Auto-start a fresh recorder per question ----------
+  // Stop any active recording when the question changes (e.g. after submit -> next).
+  // Recording for the new question is started manually by the user via the Record button.
   useEffect(() => {
-    if (!streamReady) return;
-    startRecorder();
-    return stopRecorder;
+    return () => {
+      if (recorderRef.current && recorderRef.current.state === 'recording') {
+        try { recorderRef.current.stop(); } catch (_) {}
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index, streamReady]);
+  }, [index]);
+
+  const hasRecording = !!lastBlobRef.current;
 
   function pickMimeType() {
     const candidates = useCam
@@ -151,9 +156,8 @@ export default function Interview() {
       const hasAudio = !!blob && useMic;
       if (!text && !hasAudio) {
         setBusy(false);
-        startRecorder(); // resume so user can try again
         alert(useMic
-          ? "I didn't catch anything — please speak your answer (or type it) and try again."
+          ? 'Press “Record Answer” first (or type your answer), then submit.'
           : 'Type your answer first.');
         return;
       }
@@ -216,29 +220,52 @@ export default function Interview() {
           <h3>📝 Your answer</h3>
 
           {useMic && (
-            <div
-              className="mt-sm"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                background: recording ? 'rgba(255,92,92,0.15)' : 'var(--card-alt)',
-                padding: '10px 12px',
-                borderRadius: 8,
-                color: recording ? 'var(--danger)' : 'var(--text-secondary)',
-                fontSize: 13,
-                fontWeight: 600
-              }}
-            >
-              <span style={{ fontSize: 14 }}>{recording ? '🔴' : '⏸'}</span>
-              <span>
-                {recording
-                  ? `Listening… speak your answer${useCam ? ' (camera + mic)' : ''}.`
-                  : streamReady
-                  ? 'Recording paused.'
-                  : permError || 'Requesting camera/mic permission…'}
-              </span>
-            </div>
+            <>
+              <div
+                className="mt-sm"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  background: recording
+                    ? 'rgba(255,92,92,0.15)'
+                    : hasRecording
+                    ? 'rgba(74,222,128,0.15)'
+                    : 'var(--card-alt)',
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  color: recording ? 'var(--danger)' : hasRecording ? 'var(--green)' : 'var(--text-secondary)',
+                  fontSize: 13,
+                  fontWeight: 600
+                }}
+              >
+                <span style={{ fontSize: 14 }}>{recording ? '🔴' : hasRecording ? '✓' : '⏸'}</span>
+                <span>
+                  {recording
+                    ? `Recording… speak your answer${useCam ? ' (camera + mic)' : ''}.`
+                    : hasRecording
+                    ? 'Answer recorded. Submit to send, or re-record.'
+                    : streamReady
+                    ? 'Read the question, then press Record Answer when ready.'
+                    : permError || 'Requesting camera/mic permission…'}
+                </span>
+              </div>
+
+              {streamReady && !recording && (
+                <button
+                  className={'btn block mt-md ' + (hasRecording ? 'outline' : '')}
+                  onClick={startRecorder}
+                  disabled={busy}
+                >
+                  {hasRecording ? '🔁 Re-record Answer' : '🎤 Record Answer'}
+                </button>
+              )}
+              {recording && (
+                <button className="btn block danger mt-md" onClick={stopRecorder} disabled={busy}>
+                  ⏹ Stop Recording
+                </button>
+              )}
+            </>
           )}
 
           {mode.textInput !== false && (
