@@ -8,6 +8,7 @@ export default function Result() {
   const nav = useNavigate();
   const [sessions, setSessions] = useState([]);
   const [overall, setOverall] = useState(0);
+  const [downloadingId, setDownloadingId] = useState(null);
 
   useEffect(() => {
     api.get('/sessions').then((r) => setSessions(r.data.sessions || []));
@@ -15,6 +16,29 @@ export default function Result() {
   }, []);
 
   const completed = sessions.filter((s) => s.status === 'completed');
+
+  async function downloadReport(sessionId) {
+    setDownloadingId(sessionId);
+    try {
+      const res = await api.get(`/reports/session/${sessionId}/pdf`, { responseType: 'blob' });
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const cd = res.headers?.['content-disposition'] || '';
+      const match = cd.match(/filename="?([^"]+)"?/i);
+      const filename = match?.[1] || `SmartPrep-Report-${sessionId}.pdf`;
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      alert(e?.response?.data?.error || 'Could not download the report.');
+    } finally {
+      setDownloadingId(null);
+    }
+  }
 
   return (
     <AppLayout>
@@ -59,9 +83,18 @@ export default function Result() {
                       <td className="muted">{new Date(s.createdAt).toLocaleDateString()}</td>
                       <td><span className="score-pill">{s.overallScore || s.overallTechnical || 0}%</span></td>
                       <td style={{ textAlign: 'right' }}>
-                        <button className="btn sm secondary" onClick={() => nav(`/feedback/${s._id}`)}>
-                          View details
-                        </button>
+                        <div style={{ display: 'inline-flex', gap: 6 }}>
+                          <button className="btn sm secondary" onClick={() => nav(`/feedback/${s._id}`)}>
+                            View details
+                          </button>
+                          <button
+                            className="btn sm outline"
+                            onClick={() => downloadReport(s._id)}
+                            disabled={downloadingId === s._id}
+                          >
+                            {downloadingId === s._id ? 'Preparing…' : '📄 PDF'}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

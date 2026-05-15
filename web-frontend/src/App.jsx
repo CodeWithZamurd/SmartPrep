@@ -5,6 +5,8 @@ import Splash from './pages/Splash.jsx';
 import Login from './pages/Login.jsx';
 import Signup from './pages/Signup.jsx';
 import AdminLogin from './pages/AdminLogin.jsx';
+import ForgotPassword from './pages/ForgotPassword.jsx';
+import ResetPassword from './pages/ResetPassword.jsx';
 
 import Home from './pages/Home.jsx';
 import EvaluationRules from './pages/EvaluationRules.jsx';
@@ -47,6 +49,8 @@ export default function App() {
       <Route path="/login" element={token ? <Navigate to={home} replace /> : <Login />} />
       <Route path="/signup" element={token ? <Navigate to={home} replace /> : <Signup />} />
       <Route path="/admin-login" element={token ? <Navigate to={home} replace /> : <AdminLogin />} />
+      <Route path="/forgot-password" element={token ? <Navigate to={home} replace /> : <ForgotPassword />} />
+      <Route path="/reset-password" element={token ? <Navigate to={home} replace /> : <ResetPassword />} />
 
       <Route path="/home" element={<PrivateRoute role="user"><Home /></PrivateRoute>} />
       <Route path="/evaluation-rules" element={<PrivateRoute role="user"><EvaluationRules /></PrivateRoute>} />

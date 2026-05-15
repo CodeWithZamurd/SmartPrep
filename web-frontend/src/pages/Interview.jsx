@@ -15,6 +15,7 @@ export default function Interview() {
   const [mode] = useState(init.mode || { textInput: true, voiceInput: true, webcam: false });
   const [text, setText] = useState('');
   const [recording, setRecording] = useState(false);
+  const [hasRecording, setHasRecording] = useState(false);
   const [permError, setPermError] = useState('');
   const [busy, setBusy] = useState(false);
   const [streamReady, setStreamReady] = useState(false);
@@ -85,8 +86,6 @@ export default function Interview() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index]);
 
-  const hasRecording = !!lastBlobRef.current;
-
   function pickMimeType() {
     const candidates = useCam
       ? ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4']
@@ -103,6 +102,7 @@ export default function Interview() {
     try {
       chunksRef.current = [];
       lastBlobRef.current = null;
+      setHasRecording(false);
       const mimeType = pickMimeType();
       const rec = mimeType
         ? new MediaRecorder(streamRef.current, { mimeType })
@@ -111,6 +111,7 @@ export default function Interview() {
       rec.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: rec.mimeType || (useCam ? 'video/webm' : 'audio/webm') });
         lastBlobRef.current = blob;
+        setHasRecording(true);
       };
       rec.start(1000); // gather data every second
       recorderRef.current = rec;
@@ -180,6 +181,9 @@ export default function Interview() {
         setQuestion(data.question);
         setIndex(data.index);
         setText('');
+        lastBlobRef.current = null;
+        chunksRef.current = [];
+        setHasRecording(false);
       }
     } catch (e) {
       alert(e?.response?.data?.error || e.message);

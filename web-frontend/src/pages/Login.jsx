@@ -67,7 +67,7 @@ export default function Login() {
           </button>
         </div>
         <div style={{ textAlign: 'right', marginTop: 8 }}>
-          <span className="link" style={{ fontSize: 13 }}>Forgot password?</span>
+          <Link to="/forgot-password" className="link" style={{ fontSize: 13 }}>Forgot password?</Link>
         </div>
         <button className="btn block lg mt-lg" disabled={loading}>
           {loading ? 'Signing in…' : 'Sign in'}

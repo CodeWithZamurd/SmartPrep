@@ -40,6 +40,7 @@ export default function Feedback() {
   const { sessionId } = useParams();
   const nav = useNavigate();
   const [data, setData] = useState(null);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     api.get(`/feedback/session/${sessionId}`).then((r) => setData(r.data)).catch(() => {});
@@ -60,10 +61,26 @@ export default function Feedback() {
   const verdict = overall >= 75 ? 'Strong Candidate' : overall >= 60 ? 'Promising' : 'Needs Practice';
 
   async function downloadReport() {
+    setDownloading(true);
     try {
-      await api.post(`/reports/generate/${sessionId}`);
-      alert('Report saved.');
-    } catch (e) {}
+      const res = await api.get(`/reports/session/${sessionId}/pdf`, { responseType: 'blob' });
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const cd = res.headers?.['content-disposition'] || '';
+      const match = cd.match(/filename="?([^"]+)"?/i);
+      const filename = match?.[1] || `SmartPrep-Report-${sessionId}.pdf`;
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      alert(e?.response?.data?.error || 'Could not download the report.');
+    } finally {
+      setDownloading(false);
+    }
   }
 
   return (
@@ -82,7 +99,9 @@ export default function Feedback() {
           <button className="btn secondary" onClick={() => nav(`/suggestions/${sessionId}`)}>
             See suggestions
           </button>
-          <button className="btn outline" onClick={downloadReport}>Download report</button>
+          <button className="btn outline" onClick={downloadReport} disabled={downloading}>
+            {downloading ? 'Preparing PDF…' : 'Download report'}
+          </button>
         </div>
       </div>
 
