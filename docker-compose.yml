@@ -6,7 +6,7 @@ services:
     volumes:
       - mongo-data:/data/db
     ports:
-      - "27017:27017"
+      - "27018:27017"
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
       interval: 10s
@@ -59,7 +59,7 @@ services:
     container_name: smartprep-web
     restart: unless-stopped
     ports:
-      - "8080:80"
+      - "8090:80"
     depends_on:
       - backend
 
