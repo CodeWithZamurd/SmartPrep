@@ -18,7 +18,10 @@ const userSchema = new mongoose.Schema(
     dailySessionCount: { type: Number, default: 0 },
     dailySessionDate: { type: String, default: '' },
     status: { type: String, enum: ['active', 'needs_help', 'inactive'], default: 'active' },
-    lastActiveAt: { type: Date, default: Date.now }
+    lastActiveAt: { type: Date, default: Date.now },
+    passwordResetOtpHash: { type: String, default: null },
+    passwordResetOtpExpiry: { type: Date, default: null },
+    passwordResetAttempts: { type: Number, default: 0 }
   },
   { timestamps: true }
 );

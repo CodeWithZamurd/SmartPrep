@@ -8,6 +8,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 import authRoutes from './routes/auth.js';
+import passwordResetRoutes from './routes/passwordReset.js';
 import profileRoutes from './routes/profile.js';
 import sessionRoutes from './routes/sessions.js';
 import practiceRoutes from './routes/practice.js';
@@ -35,6 +36,7 @@ if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 app.use('/uploads', express.static(UPLOAD_DIR));
 
 app.use('/auth', authRoutes);
+app.use('/auth/password', passwordResetRoutes);
 app.use('/profile', profileRoutes);
 app.use('/sessions', sessionRoutes);
 app.use('/practice', practiceRoutes);

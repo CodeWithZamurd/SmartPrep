@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Brand } from '../components/Screen';
@@ -7,11 +7,24 @@ import BottomTabs from '../components/BottomTabs';
 import Card from '../components/Card';
 import ProgressRing from '../components/ProgressRing';
 import { api } from '../services/api';
+import { downloadSessionReport } from '../services/downloadReport';
 import { colors, radii, spacing } from '../theme';
 
 export default function ResultScreen({ navigation }) {
   const [sessions, setSessions] = useState([]);
   const [overall, setOverall] = useState(0);
+  const [downloadingId, setDownloadingId] = useState(null);
+
+  async function handleDownload(sessionId) {
+    setDownloadingId(sessionId);
+    try {
+      await downloadSessionReport(sessionId);
+    } catch (e) {
+      Alert.alert('Download failed', e?.message || 'Could not download the report.');
+    } finally {
+      setDownloadingId(null);
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -61,9 +74,22 @@ export default function ResultScreen({ navigation }) {
                     <Text style={styles.scoreTxt}>{s.overallScore || s.overallTechnical || 0}%</Text>
                   </View>
                 </View>
-                <Pressable onPress={() => navigation.navigate('Feedback', { sessionId: s._id })}>
-                  <Text style={styles.link}>View Details</Text>
-                </Pressable>
+                <View style={{ alignItems: 'flex-end', gap: 8 }}>
+                  <Pressable onPress={() => navigation.navigate('Feedback', { sessionId: s._id })}>
+                    <Text style={styles.link}>View Details</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleDownload(s._id)}
+                    disabled={downloadingId === s._id}
+                    style={styles.pdfBtn}
+                  >
+                    {downloadingId === s._id ? (
+                      <ActivityIndicator color={colors.primary} size="small" />
+                    ) : (
+                      <Text style={styles.pdfBtnTxt}>📄 PDF</Text>
+                    )}
+                  </Pressable>
+                </View>
               </View>
             </Card>
           ))}
@@ -88,5 +114,15 @@ const styles = StyleSheet.create({
     marginTop: 4
   },
   scoreTxt: { color: '#fff', fontWeight: '900' },
-  link: { color: colors.primary, fontWeight: '700' }
+  link: { color: colors.primary, fontWeight: '700' },
+  pdfBtn: {
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: radii.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    minWidth: 64,
+    alignItems: 'center'
+  },
+  pdfBtnTxt: { color: colors.primary, fontWeight: '700', fontSize: 12 }
 });

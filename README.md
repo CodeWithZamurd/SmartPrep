@@ -1,13 +1,16 @@
 # SmartPrep
 
-AI-powered mock interview app for technical job seekers. Mobile-first (Expo / React Native), with an Express backend (MERN) and a Python FastAPI AI service that wraps OpenAI Chat + Whisper.
+AI-powered mock interview app for technical job seekers. Mobile-first (Expo / React Native) plus a React web client, with an Express backend (MERN) and a Python FastAPI AI service that wraps OpenAI Chat + Whisper + Vision.
 
 ```
 smartprep/
 ├── backend/        Node + Express + MongoDB (REST API, auth, sessions)
-├── ai-service/     Python FastAPI (OpenAI + Whisper)
+├── ai-service/     Python FastAPI (OpenAI + Whisper + Vision)
+├── web-frontend/   React + Vite web client
 └── mobile/         Expo React Native app (Android target)
 ```
+
+> **Looking to deploy?** This README covers **local development**. For putting SmartPrep on the public internet (web + mobile APK) using only free cloud platforms, see **[DEPLOYMENT.md](DEPLOYMENT.md)**.
 
 ---
 

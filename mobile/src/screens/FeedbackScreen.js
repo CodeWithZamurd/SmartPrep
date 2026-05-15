@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { api } from '../services/api';
+import { downloadSessionReport } from '../services/downloadReport';
 import { Brand } from '../components/Screen';
 import BottomTabs from '../components/BottomTabs';
 import Card from '../components/Card';
@@ -42,6 +43,7 @@ export default function FeedbackScreen({ navigation, route }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('overview');
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -78,10 +80,14 @@ export default function FeedbackScreen({ navigation, route }) {
   const verdict = overall >= 75 ? 'Strong Candidate' : overall >= 60 ? 'Promising' : 'Needs Practice';
 
   async function downloadReport() {
+    setDownloading(true);
     try {
-      await api.post(`/reports/generate/${sessionId}`);
-      // would normally surface a link/download
-    } catch (e) {}
+      await downloadSessionReport(sessionId);
+    } catch (e) {
+      Alert.alert('Download failed', e?.message || 'Could not download the report.');
+    } finally {
+      setDownloading(false);
+    }
   }
 
   return (
@@ -134,6 +140,13 @@ export default function FeedbackScreen({ navigation, route }) {
             <Pressable onPress={() => setTab('detailed')} style={{ alignSelf: 'flex-end' }}>
               <Text style={styles.link}>See Detailed →</Text>
             </Pressable>
+            <Button
+              title={downloading ? 'Preparing PDF…' : '📄 Download Report (PDF)'}
+              onPress={downloadReport}
+              variant="outline"
+              loading={downloading}
+              style={{ marginTop: spacing.md }}
+            />
           </>
         )}
 
@@ -192,7 +205,12 @@ export default function FeedbackScreen({ navigation, route }) {
                 <Button title="See Suggestions" onPress={() => navigation.navigate('Suggestions', { sessionId })} />
               </View>
               <View style={{ flex: 1 }}>
-                <Button title="Download Report" onPress={downloadReport} variant="outline" />
+                <Button
+                  title={downloading ? 'Preparing PDF…' : 'Download Report'}
+                  onPress={downloadReport}
+                  variant="outline"
+                  loading={downloading}
+                />
               </View>
             </View>
           </>

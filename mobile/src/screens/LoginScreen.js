@@ -66,7 +66,7 @@ export default function LoginScreen({ navigation }) {
           </Pressable>
         </View>
 
-        <Pressable onPress={() => Alert.alert('Forgot password', 'Coming soon')} style={{ alignSelf: 'flex-end' }}>
+        <Pressable onPress={() => navigation.navigate('ForgotPassword')} style={{ alignSelf: 'flex-end' }}>
           <Text style={styles.link}>Forgot Password? <Text style={styles.linkBold}>Click here</Text></Text>
         </Pressable>
 
