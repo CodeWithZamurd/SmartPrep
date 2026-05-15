@@ -14,9 +14,12 @@ const PASSWORD_REGEX = /^(?=.*[!@#$%^&*]).{6,}$/;
 
 // ---------- nodemailer (lazy singleton) ----------
 let _transporter = null;
+function isEmailConfigured() {
+  return Boolean(process.env.EMAIL_USER && process.env.EMAIL_PASS);
+}
 function getTransporter() {
   if (_transporter) return _transporter;
-  const { EMAIL_USER, EMAIL_PASS, EMAIL_HOST, EMAIL_PORT, EMAIL_FROM } = process.env;
+  const { EMAIL_USER, EMAIL_PASS, EMAIL_HOST, EMAIL_PORT } = process.env;
   if (!EMAIL_USER || !EMAIL_PASS) {
     throw new Error('Email is not configured. Set EMAIL_USER and EMAIL_PASS in backend/.env');
   }
@@ -33,7 +36,23 @@ function getTransporter() {
   return _transporter;
 }
 
+// In development, if email isn't configured, log the OTP to the server console
+// instead of failing. This keeps the UI flow testable without Gmail App Passwords.
+// In production we always require real email — silently logging would be a foot-gun.
 async function sendOtpEmail(to, otp) {
+  if (!isEmailConfigured()) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Email is not configured on the server.');
+    }
+    console.log('\n========================================');
+    console.log('  [DEV] EMAIL NOT CONFIGURED — OTP BELOW');
+    console.log(`  to:    ${to}`);
+    console.log(`  code:  ${otp}`);
+    console.log(`  ttl:   5 minutes`);
+    console.log('  Set EMAIL_USER/EMAIL_PASS in backend/.env to send real emails.');
+    console.log('========================================\n');
+    return;
+  }
   const from = process.env.EMAIL_FROM || `"SmartPrep AI" <${process.env.EMAIL_USER}>`;
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;padding:24px;background:#0A1331;color:#fff;border-radius:12px">
